@@ -1,0 +1,11 @@
+include dash_rgl/dash_rgl.min.js
+include dash_rgl/dash_rgl.min.js.map
+include dash_rgl/async-*.js
+include dash_rgl/async-*.js.map
+include dash_rgl/*-shared.js
+include dash_rgl/*-shared.js.map
+include dash_rgl/metadata.json
+include dash_rgl/package-info.json
+include README.md
+include LICENSE
+include package.json
