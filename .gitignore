@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# PyCharm
+.idea/
+
+# Dash/Node
+node_modules/
+dist/
+build/
+
+# OS
+Thumbs.db
+.DS_Store
