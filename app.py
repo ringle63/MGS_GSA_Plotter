@@ -43,6 +43,15 @@ from logic.panel_filters import (
 
 from dash.exceptions import PreventUpdate
 
+import dash_rgl
+
+print("dash_rgl =", dash_rgl)
+print("dash_rgl file =", getattr(dash_rgl, "__file__", None))
+
+from dash_rgl.Hello import Hello
+
+print("Hello =", Hello)
+
 gsa_df = load_gsa_lab()
 mmes_df = load_mmes()
 
@@ -116,6 +125,8 @@ app.layout = html.Div(
     [
         html.H1("MGS_GSA_Plotter"),
 
+        print(Hello),
+        Hello(message="It works!"),
         dcc.Store(
             id="panel-store",
             data=[

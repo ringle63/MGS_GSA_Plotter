@@ -1,0 +1,1 @@
+{"src/Hello.react.js":{"description":"","displayName":"Hello","methods":[],"props":{"message":{"type":{"name":"string"},"required":false,"description":"Message to display.","defaultValue":{"value":"'Default Message'","computed":false}}}}}

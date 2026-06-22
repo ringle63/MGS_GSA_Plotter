@@ -1,0 +1,12 @@
+{
+  "name": "dash_rgl",
+  "version": "0.0.1",
+  "description": "React Grid Layout wrapper for Dash",
+  "main": "index.js",
+  "dependencies": {
+    "prop-types": "^15.8.1",
+    "react": "^18.3.1",
+    "react-docgen": "^5.4.0",
+    "react-dom": "^18.3.1"
+  }
+}
