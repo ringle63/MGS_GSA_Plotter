@@ -1,1 +1,1 @@
-{"src/lib/components/RGLLayout.react.js":{"description":"","displayName":"RGLLayout","methods":[],"props":{"children":{"type":{"name":"node"},"required":false,"description":"Dash components passed into this layout."}}}}
+{"src/lib/components/RGLLayout.react.js":{"description":"","displayName":"RGLLayout","methods":[],"props":{"id":{"type":{"name":"string"},"required":false,"description":""},"children":{"type":{"name":"node"},"required":false,"description":""}}}}

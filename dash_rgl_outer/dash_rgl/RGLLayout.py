@@ -26,8 +26,9 @@ class RGLLayout(Component):
 
 Keyword arguments:
 
-- children (a list of or a singular dash component, string or number; optional):
-    Dash components passed into this layout."""
+- children (a list of or a singular dash component, string or number; optional)
+
+- id (string; optional)"""
     _children_props: typing.List[str] = []
     _base_nodes = ['children']
     _namespace = 'dash_rgl'
@@ -37,11 +38,12 @@ Keyword arguments:
     def __init__(
         self,
         children: typing.Optional[ComponentType] = None,
+        id: typing.Optional[typing.Union[str, dict]] = None,
         **kwargs
     ):
-        self._prop_names = ['children']
+        self._prop_names = ['children', 'id']
         self._valid_wildcard_attributes =            []
-        self.available_properties = ['children']
+        self.available_properties = ['children', 'id']
         self.available_wildcard_properties =            []
         _explicit_args = kwargs.pop('_explicit_args')
         _locals = locals()

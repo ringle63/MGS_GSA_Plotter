@@ -13,77 +13,64 @@ const RGLLayout = ({ children }) => {
     const layout = childArray.map((_, i) => ({
         i: String(i),
         x: 0,
-        y: i * 2,
+        y: i * 4,
         w: 12,
-        h: 2,
+        h: 8,
     }));
 
     return (
         <GridLayout
             className="layout"
+            layout={layout}
             cols={12}
-            rowHeight={30}
+            rowHeight={40}
             width={1200}
             isResizable={true}
             isDraggable={true}
             draggableHandle=".react-grid-dragHandle"
         >
-        <div key="0">
-            <div
-                className="react-grid-dragHandle"
-                style={{
-                    background: '#cccccc',
-                    padding: '6px',
-                    cursor: 'move',
-                    fontWeight: 'bold',
-                }}
-            >
-                Drag Me
-            </div>
-
-            <div
-                style={{
-                    border: '2px solid red',
-                    background: '#eeeeee',
-                    height: '100%',
-                }}
-            >
-                TEST 1
-            </div>
-        </div>
-
-            <div key="1">
+            {childArray.map((child, i) => (
                 <div
-                    className="react-grid-dragHandle"
+                    key={String(i)}
                     style={{
-                        background: '#cccccc',
-                        padding: '6px',
-                        cursor: 'move',
-                        fontWeight: 'bold',
+                        backgroundColor: 'white',
+                        border: '2px solid #4CAF50',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}
                 >
-                    Drag Me
-                </div>
+                    <div
+                        className="react-grid-dragHandle"
+                        style={{
+                            backgroundColor: '#dddddd',
+                            padding: '8px',
+                            cursor: 'move',
+                            fontWeight: 'bold',
+                            flexShrink: 0,
+                        }}
+                    >
+                        Panel {i + 1}
+                    </div>
 
-                <div
-                    style={{
-                        border: '2px solid blue',
-                        background: '#dddddd',
-                        height: '100%',
-                    }}
-                >
-                    TEST 2
+                    <div
+                        style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            padding: '8px',
+                        }}
+                    >
+                        {child}
+                    </div>
                 </div>
-            </div>
+            ))}
         </GridLayout>
     );
 };
 
 
 RGLLayout.propTypes = {
-    /**
-     * Dash components passed into this layout.
-     */
+    id: PropTypes.string,
     children: PropTypes.node,
 };
 
