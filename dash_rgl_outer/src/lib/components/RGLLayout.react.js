@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
 import GridLayout from 'react-grid-layout';
@@ -7,10 +7,14 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 
-const RGLLayout = ({ children }) => {
+const RGLLayout = ({
+    children,
+    layout,
+    setProps,
+}) => {
     const childArray = React.Children.toArray(children);
 
-    const layout = childArray.map((_, i) => ({
+    const defaultLayout = childArray.map((_, i) => ({
         i: String(i),
         x: 0,
         y: i * 4,
@@ -18,16 +22,29 @@ const RGLLayout = ({ children }) => {
         h: 8,
     }));
 
+    const [currentLayout, setCurrentLayout] = useState(defaultLayout);
+
+    useEffect(() => {
+        if (currentLayout.length !== childArray.length) {
+            setCurrentLayout(defaultLayout);
+        }
+    }, [childArray.length]);
+
     return (
         <GridLayout
             className="layout"
-            layout={layout}
+            layout={currentLayout}
             cols={12}
             rowHeight={40}
             width={1200}
             isResizable={true}
             isDraggable={true}
             draggableHandle=".react-grid-dragHandle"
+
+            onLayoutChange={(newLayout) => {
+                setCurrentLayout(newLayout);
+            }
+            }
         >
             {childArray.map((child, i) => (
                 <div
@@ -71,7 +88,12 @@ const RGLLayout = ({ children }) => {
 
 RGLLayout.propTypes = {
     id: PropTypes.string,
+
     children: PropTypes.node,
+
+    layout: PropTypes.array,
+
+    setProps: PropTypes.func,
 };
 
 
