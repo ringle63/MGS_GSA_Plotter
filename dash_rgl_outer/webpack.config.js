@@ -1,4 +1,5 @@
 const path = require('path');
+const process = require('process');
 const webpack = require('webpack');
 const WebpackDashDynamicImport = require('@plotly/webpack-dash-dynamic-import');
 const packagejson = require('./package.json');
@@ -60,6 +61,12 @@ module.exports = (env, argv) => {
             }
         },
         externals,
+
+        resolve: {
+            extensions: ['.js', '.jsx', '.mjs'],
+            fullySpecified: false,
+        },
+
         module: {
             rules: [
                 {
@@ -103,6 +110,9 @@ module.exports = (env, argv) => {
             }
         },
         plugins: [
+            new webpack.ProvidePlugin({
+                process: 'process/browser',
+            }),
             new WebpackDashDynamicImport(),
             new webpack.SourceMapDevToolPlugin({
                 filename: '[file].map',
