@@ -25,9 +25,34 @@ const RGLLayout = ({
     const [currentLayout, setCurrentLayout] = useState(defaultLayout);
 
     useEffect(() => {
-        if (currentLayout.length !== childArray.length) {
-            setCurrentLayout(defaultLayout);
+
+        // Panel added
+        if (childArray.length > currentLayout.length) {
+
+            const newLayout = [...currentLayout];
+
+            for (let i = currentLayout.length; i < childArray.length; i++) {
+                newLayout.push({
+                    i: String(i),
+                    x: 0,
+                    y: Infinity,
+                    w: 12,
+                    h: 8,
+                });
+            }
+
+            setCurrentLayout(newLayout);
+            return;
         }
+
+        // Panel removed
+        if (childArray.length < currentLayout.length) {
+
+            setCurrentLayout(
+                currentLayout.slice(0, childArray.length)
+            );
+        }
+
     }, [childArray.length]);
 
     return (
