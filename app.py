@@ -45,9 +45,6 @@ from dash.exceptions import PreventUpdate
 
 from dash_rgl import RGLLayout
 
-print("RGLLayout =", RGLLayout)
-print("Type =", type(RGLLayout))
-
 gsa_df = load_gsa_lab()
 mmes_df = load_mmes()
 
@@ -119,24 +116,6 @@ app.title = "MGS_GSA_Plotter"
 
 app.layout = html.Div(
     [
-RGLLayout(
-    children=[
-        html.Div(
-            "Panel 1",
-            style={
-                "backgroundColor": "#d9edf7",
-                "padding": "20px",
-            },
-        ),
-        html.Div(
-            "Panel 2",
-            style={
-                "backgroundColor": "#dff0d8",
-                "padding": "20px",
-            },
-        ),
-    ]
-),
         html.H1("MGS_GSA_Plotter"),
 
         dcc.Store(
@@ -188,9 +167,9 @@ RGLLayout(
                     n_clicks=0,
                 ),
 
-                html.Div(
+                RGLLayout(
                     id="panel-container",
-                    style={"marginTop": "20px"},
+                    layout=[],
                 ),
             ],
             style={
