@@ -344,6 +344,23 @@ def create_panel(
                             html.P(
                                 "Dry Sieve: Clay = 0, Silt = Fines_0_63"
                             ),
+                            dcc.Checklist(
+                                id={
+                                    "type": "show-usda",
+                                    "index": panel["id"],
+                                },
+                                options=[
+                                    {
+                                        "label": "Show USDA Classes",
+                                        "value": "usda",
+                                    }
+                                ],
+                                value=(
+                                    ["usda"]
+                                    if panel["show_usda_triangle"]
+                                    else []
+                                ),
+                            ),
                         ],
                         style={
                             "display": (

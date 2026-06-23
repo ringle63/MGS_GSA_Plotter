@@ -1,0 +1,22 @@
+phase 12
+responsive screen width + allow to go wider with scroll.
+collapsible or resizeable global control
+hover buttons
+label cleanup
+box color
+collapsible all options
+hitching/updating redrawing on all graphs when changing settings
+
+reverse ternary values
+add usda boundaries
+
+
+data fixes
+pipette 2 break
+mmes to lab matches
+
+
+
+
+DONE
+show legend button on ternary doesn't works

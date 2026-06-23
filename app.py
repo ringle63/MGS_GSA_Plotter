@@ -136,6 +136,7 @@ app.layout = html.Div(
 
                     "mastersizer_break": 8,
                     "pipette_break": 2,
+                    "show_usda_triangle": True,
 
                     "override_methods": [],
                     "override_formations": [],
@@ -413,6 +414,7 @@ def add_panel(
 
             "mastersizer_break": 8,
             "pipette_break": 2,
+            "show_usda_triangle": True,
 
             "override_methods": [],
             "override_formations": [],
@@ -776,6 +778,13 @@ def update_chart_types(
             },
             "value",
         ),
+        Input(
+            {
+                "type": "show-usda",
+                "index": ALL,
+            },
+            "value",
+        ),
     ],
     State("panel-store", "data"),
     prevent_initial_call=True,
@@ -783,6 +792,7 @@ def update_chart_types(
 def update_ternary_settings(
         mastersizer_breaks,
         pipette_breaks,
+        show_usda,
         panel_data,
 ):
 
@@ -802,6 +812,10 @@ def update_ternary_settings(
 
         panel["pipette_break"] = (
             pipette_breaks[i]
+        )
+
+        panel["show_usda_triangle"] = (
+                "usda" in (show_usda[i] or [])
         )
 
     return panel_data
