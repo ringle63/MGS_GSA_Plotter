@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-import GridLayout from 'react-grid-layout';
+import GridLayout, {
+    WidthProvider,
+} from 'react-grid-layout';
+
+const ResponsiveGridLayout =
+    WidthProvider(GridLayout);
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -18,7 +23,7 @@ const RGLLayout = ({
         i: String(i),
         x: 0,
         y: i * 4,
-        w: 12,
+        w: 10,
         h: 8,
     }));
 
@@ -36,7 +41,7 @@ const RGLLayout = ({
                     i: String(i),
                     x: 0,
                     y: Infinity,
-                    w: 12,
+                    w: 10,
                     h: 8,
                 });
             }
@@ -56,12 +61,16 @@ const RGLLayout = ({
     }, [childArray.length]);
 
     return (
-        <GridLayout
+        <ResponsiveGridLayout
             className="layout"
             layout={currentLayout}
-            cols={12}
+            cols={36}
             rowHeight={40}
-            width={1200}
+            style={{
+                minWidth: '100%',
+                width: '300%',
+            }}
+            measureBeforeMount={false}
             isResizable={true}
             isDraggable={true}
             draggableHandle=".react-grid-dragHandle"
@@ -85,6 +94,7 @@ const RGLLayout = ({
                         overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
+                        minWidth: 0,
                     }}
                 >
                     <div
@@ -105,13 +115,14 @@ const RGLLayout = ({
                             flex: 1,
                             overflow: 'auto',
                             padding: '8px',
+                            minWidth: 0,
                         }}
                     >
                         {child}
                     </div>
                 </div>
             ))}
-        </GridLayout>
+        </ResponsiveGridLayout>
     );
 };
 
