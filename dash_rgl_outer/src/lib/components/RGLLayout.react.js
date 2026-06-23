@@ -68,8 +68,13 @@ const RGLLayout = ({
 
             onLayoutChange={(newLayout) => {
                 setCurrentLayout(newLayout);
-            }
-            }
+
+                if (setProps) {
+                    setProps({
+                        layout: newLayout,
+                    });
+                }
+            }}
         >
             {childArray.map((child, i) => (
                 <div

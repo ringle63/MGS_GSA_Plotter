@@ -4,10 +4,11 @@ from logic.grainbreaks import get_grain_fractions
 
 from logic.usda_triangle import add_usda_triangle
 
+
 def make_ternary_plot(
-    gsa_df,
-    selected_samples,
-    panel,
+        gsa_df,
+        selected_samples,
+        panel,
 ):
 
     fig = go.Figure()
@@ -63,6 +64,8 @@ def make_ternary_plot(
 
         showlegend=panel["show_legend"],
 
+        autosize=True,
+
         ternary=dict(
             sum=100,
 
@@ -89,92 +92,111 @@ def make_ternary_plot(
         ),
     )
 
+    fig.update_layout(
+        annotations=[]
+    )
+
     # ---------- AXIS LABELS ----------
 
-    fig.add_annotation(
-        text="percent clay",
-        x=0.35,
-        y=0.49,
-        textangle=-60,
-        showarrow=False,
-        font=dict(
-            size=18,
-            color="gray",
-        ),
+    # Hide axis labels on narrow panels
+    # ---------- AXIS LABELS ----------
+
+    # ---------- AXIS LABELS ----------
+
+    show_axis_annotations = (
+            panel.get("layout", {}).get("w", 12) >= 10
     )
 
-    fig.add_annotation(
-        text="percent silt",
-        x=0.65,
-        y=0.49,
-        textangle=60,
-        showarrow=False,
-        font=dict(
-            size=18,
-            color="gray",
-        ),
-    )
+    if show_axis_annotations:
 
-    fig.add_annotation(
-        text="percent sand",
-        x=0.50,
-        y=-0.14,
-        showarrow=False,
-        font=dict(
-            size=18,
-            color="gray",
-        ),
-    )
+        fig.add_annotation(
+            text="percent clay",
+            x=0.35,
+            y=0.49,
+            textangle=-60,
+            showarrow=False,
+            font=dict(
+                size=18,
+                color="gray",
+            ),
+        )
 
-    # ---------- CLAY ARROW ----------
+        fig.add_annotation(
+            text="percent silt",
+            x=0.65,
+            y=0.49,
+            textangle=60,
+            showarrow=False,
+            font=dict(
+                size=18,
+                color="gray",
+            ),
+        )
 
-    fig.add_annotation(
-        x=0.33,
-        y=0.49,
-        ax=-35,
-        ay=65,
-        xref="paper",
-        yref="paper",
-        axref="pixel",
-        ayref="pixel",
-        showarrow=True,
-        arrowhead=2,
-        arrowcolor="gray",
-    )
+        fig.add_annotation(
+            text="percent sand",
+            x=0.50,
+            y=-0.14,
+            showarrow=False,
+            font=dict(
+                size=18,
+                color="gray",
+            ),
+        )
 
-    # ---------- SILT ARROW ----------
+        # ---------- CLAY ARROW ----------
 
-    fig.add_annotation(
-        x=0.67,
-        y=0.49,
-        ax=35,
-        ay=65,
-        xref="paper",
-        yref="paper",
-        axref="pixel",
-        ayref="pixel",
-        showarrow=True,
-        arrowhead=2,
-        arrowcolor="gray",
-    )
+        fig.add_annotation(
+            x=0.33,
+            y=0.49,
+            ax=-35,
+            ay=65,
+            xref="paper",
+            yref="paper",
+            axref="pixel",
+            ayref="pixel",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="gray",
+        )
 
-    # ---------- SAND ARROW ----------
+        # ---------- SILT ARROW ----------
 
-    fig.add_annotation(
-        x=0.50,
-        y=-0.18,
-        ax=80,
-        ay=0,
-        xref="paper",
-        yref="paper",
-        axref="pixel",
-        ayref="pixel",
-        showarrow=True,
-        arrowhead=2,
-        arrowcolor="gray",
-    )
+        fig.add_annotation(
+            x=0.67,
+            y=0.49,
+            ax=35,
+            ay=65,
+            xref="paper",
+            yref="paper",
+            axref="pixel",
+            ayref="pixel",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="gray",
+        )
+
+        # ---------- SAND ARROW ----------
+
+        fig.add_annotation(
+            x=0.50,
+            y=-0.18,
+            ax=80,
+            ay=0,
+            xref="paper",
+            yref="paper",
+            axref="pixel",
+            ayref="pixel",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="gray",
+        )
+
+    if fig.layout.annotations is None:
+        fig.update_layout(annotations=[])
 
     if panel["show_usda_triangle"]:
         fig = add_usda_triangle(fig)
+
 
     return fig

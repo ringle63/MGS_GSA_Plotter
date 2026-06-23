@@ -146,9 +146,14 @@ app.layout = html.Div(
                     "graph_options_open": True,
                     "override_options_open": False,
 
-                    "panel_open": True,
+                    "controls_open": True,
                 }
             ],
+        ),
+
+        dcc.Store(
+            id="layout-store",
+            data=[],
         ),
 
         create_globalselection(
@@ -365,6 +370,9 @@ def modify_sample_selection(
     Input("panel-store", "data"),
 )
 def render_panels(panel_data):
+
+    print(panel_data)
+
     panels = []
 
     for display_number, panel in enumerate(panel_data, start=1):
@@ -381,6 +389,14 @@ def render_panels(panel_data):
 
     return panels
 
+@app.callback(
+    Output("layout-store", "data"),
+    Input("panel-container", "layout"),
+    prevent_initial_call=True,
+)
+def store_layout(layout):
+    print("LAYOUT CALLBACK:", layout)
+    return layout
 
 @app.callback(
     Output("panel-store", "data"),
@@ -424,7 +440,7 @@ def add_panel(
             "graph_options_open": True,
             "override_options_open": False,
 
-            "panel_open": True,
+            "controls_open": True,
         }
     )
 
@@ -569,12 +585,14 @@ def update_use_global(
             "value",
         ),
         Input("global-samples", "value"),
+        Input("layout-store", "data"),
     ],
     State("panel-store", "data"),
 )
 def update_graphs(
         chart_types,
         global_samples,
+        layout_data,
         panel_data,
 ):
 
@@ -589,10 +607,24 @@ def update_graphs(
 
     global_samples = global_samples or []
 
+    layout_lookup = {
+        item["i"]: item
+        for item in (layout_data or [])
+    }
+
     for panel, chart_type in zip(
             panel_data,
             chart_types,
     ):
+
+        panel = panel.copy()
+
+        layout = layout_lookup.get(
+            str(panel["id"] - 1)
+        )
+
+        if layout:
+            panel["layout"] = layout
 
         panel_samples = get_panel_samples(
             panel,
@@ -830,7 +862,7 @@ def update_ternary_settings(
 
     Input(
         {
-            "type": "toggle-panel",
+            "type": "toggle-controls",
             "index": ALL,
         },
         "n_clicks",
@@ -860,7 +892,7 @@ def update_ternary_settings(
     prevent_initial_call=True,
 )
 def toggle_panel_sections(
-        panel_clicks,
+        controls_clicks,
         graph_clicks,
         override_clicks,
         panel_data,
@@ -878,12 +910,13 @@ def toggle_panel_sections(
         if p["id"] == panel_id
     )
 
-    if trigger["type"] == "toggle-panel":
-        panel["panel_open"] = (
-            not panel["panel_open"]
+    if trigger["type"] == "toggle-controls":
+
+        panel["controls_open"] = (
+            not panel["controls_open"]
         )
 
-    if trigger["type"] == "toggle-graph-options":
+    elif trigger["type"] == "toggle-graph-options":
 
         panel["graph_options_open"] = (
             not panel["graph_options_open"]
