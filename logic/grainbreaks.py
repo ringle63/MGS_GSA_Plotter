@@ -1,5 +1,6 @@
 def get_grain_fractions(
     sample_row,
+    mmes_row,
     ternary_settings,
 ):
     """
@@ -18,6 +19,10 @@ def get_grain_fractions(
     if method == "Mastersizer":
 
         clay_break = ternary_settings["Mastersizer"]
+
+        sand_break = ternary_settings[
+            "MastersizerSand"
+        ]
 
     elif method == "Pipette":
 
@@ -45,9 +50,63 @@ def get_grain_fractions(
 
     if clay_break == 2:
         silt_field = "Silt2_625"
-
     else:
         silt_field = f"Silt_{clay_break}_625"
+
+    # Mastersizer gets special handling because the
+    # sand/silt break can come from MMES data.
+
+    if method == "Mastersizer":
+
+        if mmes_row is None:
+            return None
+
+        clay = sample_row[clay_field]
+
+        if sand_break == 62.5:
+
+            silt = sample_row[silt_field]
+            sand = sample_row["Sand625_2000"]
+
+        else:  # 50 µm break
+
+            sand = (
+                    mmes_row["Result_In_Range___50_2000__μm"]
+                    +
+                    mmes_row["Result_In_Range___2000_3500__μm"]
+            )
+
+            if clay_break == 2:
+
+                silt = mmes_row[
+                    "Result_In_Range___2_50__μm"
+                ]
+
+            elif clay_break == 8:
+
+                silt = mmes_row[
+                    "Result_In_Range___8_50__μm"
+                ]
+
+            else:  # 4 µm
+
+                silt = (
+                        100
+                        - sand
+                        - mmes_row[
+                            "Result_In_Range___0_4__μm"
+                        ]
+                )
+
+        return {
+            "clay": clay,
+            "silt": silt,
+            "sand": sand,
+            "method": method,
+            "break": f"{clay_break}/{sand_break}",
+        }
+
+    # Everyone else uses the existing logic
 
     return {
         "clay": sample_row[clay_field],
@@ -59,6 +118,7 @@ def get_grain_fractions(
 
 def get_grain_log_classes(
     sample_row,
+    mmes_row,
     settings,
 ):
 
@@ -67,6 +127,7 @@ def get_grain_log_classes(
     if method == "Mastersizer":
 
         clay_break = settings["Mastersizer"]
+        sand_break = settings["MastersizerSand"]
 
         clay_field = f"Clay0_{clay_break}"
 
@@ -75,17 +136,58 @@ def get_grain_log_classes(
         else:
             silt_field = f"Silt_{clay_break}_625"
 
+        if sand_break == 62.5:
+
+            vf_sand = sample_row["sandfrac_vf"]
+            silt = sample_row[silt_field]
+
+        else:
+
+            if mmes_row is None:
+                return None
+
+            vf_sand = mmes_row[
+                "Result_In_Range___50_125__μm"
+            ]
+
+            if clay_break == 2:
+
+                silt = mmes_row[
+                    "Result_In_Range___2_50__μm"
+                ]
+
+            elif clay_break == 8:
+
+                silt = mmes_row[
+                    "Result_In_Range___8_50__μm"
+                ]
+
+            else:
+
+                silt = (
+                        100
+                        - mmes_row[
+                            "Result_In_Range___50_2000__μm"
+                        ]
+                        - mmes_row[
+                            "Result_In_Range___2000_3500__μm"
+                        ]
+                        - mmes_row[
+                            "Result_In_Range___0_4__μm"
+                        ]
+                )
+
         return {
             "Gravel": 0,
             "Very Coarse Sand": sample_row["sandfrac_vc"],
             "Coarse Sand": sample_row["sandfrac_c"],
             "Medium Sand": sample_row["sandfrac_m"],
             "Fine Sand": sample_row["sandfrac_f"],
-            "Very Fine Sand": sample_row["sandfrac_vf"],
-            "Silt": sample_row[silt_field],
+            "Very Fine Sand": vf_sand,
+            "Silt": silt,
             "Clay": sample_row[clay_field],
             "method": method,
-            "break": clay_break,
+            "break": f"{clay_break}/{sand_break}",
         }
 
     elif method == "Pipette":

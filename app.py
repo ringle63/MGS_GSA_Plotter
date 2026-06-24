@@ -136,6 +136,7 @@ app.layout = html.Div(
 
                     "mastersizer_break": 8,
                     "pipette_break": 2,
+                    "mastersizer_sand_break": 62.5,
                     "show_usda_triangle": True,
 
                     "override_methods": [],
@@ -449,6 +450,7 @@ def add_panel(
             "show_break_62_5": True,
 
             "mastersizer_break": 8,
+            "mastersizer_sand_break": 62.5,
             "pipette_break": 2,
             "show_usda_triangle": True,
 
@@ -679,6 +681,7 @@ def update_graphs(
 
             fig = make_ternary_plot(
                 gsa_df,
+                mmes_df,
                 panel_samples,
                 panel,
             )
@@ -687,6 +690,7 @@ def update_graphs(
 
             fig = make_grain_log(
                 gsa_df,
+                mmes_df,
                 panel_samples,
                 panel,
             )
@@ -882,6 +886,13 @@ def update_chart_types(
         ),
         Input(
             {
+                "type": "mastersizer-sand-break",
+                "index": ALL,
+            },
+            "value",
+        ),
+        Input(
+            {
                 "type": "pipette-break",
                 "index": ALL,
             },
@@ -900,6 +911,7 @@ def update_chart_types(
 )
 def update_ternary_settings(
         mastersizer_breaks,
+        mastersizer_sand_breaks,
         pipette_breaks,
         show_usda,
         panel_data,
@@ -916,6 +928,10 @@ def update_ternary_settings(
     for i, panel in enumerate(panel_data):
         panel["mastersizer_break"] = (
             mastersizer_breaks[i]
+        )
+
+        panel["mastersizer_sand_break"] = (
+            mastersizer_sand_breaks[i]
         )
 
         panel["pipette_break"] = (

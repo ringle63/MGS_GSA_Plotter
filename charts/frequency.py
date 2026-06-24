@@ -1,14 +1,18 @@
 import plotly.graph_objects as go
 
+from logic.legendsorting import (
+    gsa_sort_key,
+)
+
 
 def make_frequency_plot(
-    mmes_df,
-    selected_samples,
-    show_legend,
-    show_labels,
-    x_axis,
-    show_break_8,
-    show_break_62_5,
+        mmes_df,
+        selected_samples,
+        show_legend,
+        show_labels,
+        x_axis,
+        show_break_8,
+        show_break_62_5,
 ):
     fig = go.Figure()
 
@@ -40,6 +44,16 @@ def make_frequency_plot(
         .astype(str)
         .isin(selected_samples)
     ]
+
+    subset = (
+        subset.assign(
+            _sort_key=subset[
+                "Sample_Name_Final"
+            ].apply(gsa_sort_key)
+        )
+        .sort_values("_sort_key")
+        .drop(columns="_sort_key")
+    )
 
     for _, row in subset.iterrows():
 

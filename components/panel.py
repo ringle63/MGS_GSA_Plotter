@@ -365,6 +365,23 @@ def create_panel(
 
                                     html.Br(),
 
+                                    html.Label("Mastersizer Sand/Silt Break"),
+
+                                    dcc.RadioItems(
+                                        id={
+                                            "type": "mastersizer-sand-break",
+                                            "index": panel["id"],
+                                        },
+                                        options=[
+                                            {"label": "50 µm", "value": 50},
+                                            {"label": "62.5 µm", "value": 62.5},
+                                        ],
+                                        value=panel["mastersizer_sand_break"],
+                                        inline=True,
+                                    ),
+
+                                    html.Br(),
+
                                     html.P(
                                         "Kehew: Fixed 4 µm"
                                     ),

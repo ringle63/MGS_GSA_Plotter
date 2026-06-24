@@ -4,30 +4,51 @@ from logic.grainbreaks import get_grain_fractions
 
 from logic.usda_triangle import add_usda_triangle
 
+from logic.legendsorting import (
+    gsa_sort_key,
+)
 
 def make_ternary_plot(
-        gsa_df,
-        selected_samples,
-        panel,
+    gsa_df,
+    mmes_df,
+    selected_samples,
+    panel,
 ):
 
     fig = go.Figure()
 
-    subset = gsa_df[
-        gsa_df["GSA_ID"]
-        .astype(str)
-        .isin(selected_samples)
-    ]
+    subset = (
+        subset.assign(
+            _sort_key=subset["GSA_ID"]
+            .apply(gsa_sort_key)
+        )
+        .sort_values("_sort_key")
+        .drop(columns="_sort_key")
+    )
 
     settings = {
         "Mastersizer": panel["mastersizer_break"],
+        "MastersizerSand": panel[
+            "mastersizer_sand_break"
+        ],
         "Pipette": panel["pipette_break"],
     }
 
+    mmes_lookup = (
+        mmes_df
+        .set_index("Sample_Name_Final")
+        .to_dict("index")
+    )
+
     for _, row in subset.iterrows():
+
+        mmes_row = mmes_lookup.get(
+            str(row["GSA_ID"])
+        )
 
         fractions = get_grain_fractions(
             row,
+            mmes_row,
             settings,
         )
 

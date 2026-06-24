@@ -4,9 +4,13 @@ from logic.grainbreaks import (
     get_grain_log_classes,
 )
 
+from logic.legendsorting import (
+    gsa_sort_key,
+)
 
 def make_grain_log(
     gsa_df,
+    mmes_df,
     selected_samples,
     panel,
 ):
@@ -19,10 +23,26 @@ def make_grain_log(
         .isin(selected_samples)
     ]
 
+    subset = (
+        subset.assign(
+            _sort_key=subset["GSA_ID"]
+            .apply(gsa_sort_key)
+        )
+        .sort_values("_sort_key")
+        .drop(columns="_sort_key")
+    )
+
     settings = {
         "Mastersizer": panel["mastersizer_break"],
+        "MastersizerSand": panel["mastersizer_sand_break"],
         "Pipette": panel["pipette_break"],
     }
+
+    mmes_lookup = (
+        mmes_df
+        .set_index("Sample_Name_Final")
+        .to_dict("index")
+    )
 
     classes_order = [
         "Clay",
@@ -53,12 +73,17 @@ def make_grain_log(
         for cls in classes_order
     }
 
-    hover_text = []
+    customdata = []
 
     for _, row in subset.iterrows():
 
+        mmes_row = mmes_lookup.get(
+            str(row["GSA_ID"])
+        )
+
         grain = get_grain_log_classes(
             row,
+            mmes_row,
             settings,
         )
 
@@ -69,14 +94,20 @@ def make_grain_log(
 
         y_labels.append(sample)
 
-        hover_text.append(
-            (
-                f"{sample}<br>"
-                f"Method: {grain['method']}<br>"
-                f"Break: {grain['break']}<br>"
-                f"Clay: {grain['Clay']:.1f}%<br>"
-                f"Silt: {grain['Silt']:.1f}%"
-            )
+        customdata.append(
+            [
+                sample,
+                grain["method"],
+                grain["break"],
+                grain["Gravel"],
+                grain["Very Coarse Sand"],
+                grain["Coarse Sand"],
+                grain["Medium Sand"],
+                grain["Fine Sand"],
+                grain["Very Fine Sand"],
+                grain["Silt"],
+                grain["Clay"],
+            ]
         )
 
         for cls in classes_order:
@@ -94,12 +125,21 @@ def make_grain_log(
                 marker_color=colors[cls],
                 width=0.9,
 
-                customdata=hover_text,
+                customdata=customdata,
 
                 hovertemplate=(
-                    "%{customdata}<br>"
-                    f"{cls}: "
-                    "%{x:.1f}%"
+                    "<b>%{customdata[0]}</b><br>"
+                    "Method: %{customdata[1]}<br>"
+                    "Break: %{customdata[2]}<br>"
+                    "<br>"
+                    "Gravel: %{customdata[3]:.1f}%<br>"
+                    "Very Coarse Sand: %{customdata[4]:.1f}%<br>"
+                    "Coarse Sand: %{customdata[5]:.1f}%<br>"
+                    "Medium Sand: %{customdata[6]:.1f}%<br>"
+                    "Fine Sand: %{customdata[7]:.1f}%<br>"
+                    "Very Fine Sand: %{customdata[8]:.1f}%<br>"
+                    "Silt: %{customdata[9]:.1f}%<br>"
+                    "Clay: %{customdata[10]:.1f}%"
                     "<extra></extra>"
                 ),
             )

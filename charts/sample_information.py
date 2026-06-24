@@ -1,6 +1,9 @@
 from dash import dash_table
 import pandas as pd
 
+from logic.legendsorting import (
+    gsa_sort_key,
+)
 
 BASE_FIELDS = [
     "GSA_ID",
@@ -134,6 +137,15 @@ def make_sample_information(
     ]
 
     subset = subset[existing_fields]
+
+    subset = (
+        subset.assign(
+            _sort_key=subset["GSA_ID"]
+            .apply(gsa_sort_key)
+        )
+        .sort_values("_sort_key")
+        .drop(columns="_sort_key")
+    )
 
     subset = subset.fillna("")
 
