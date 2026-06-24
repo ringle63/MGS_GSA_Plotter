@@ -156,32 +156,54 @@ app.layout = html.Div(
             data=[],
         ),
 
-        create_globalselection(
-            len(gsa_df),
-            len(mmes_df),
-            matched_count,
-            analysis_methods,
-            formations,
-            boreholes,
-        ),
-
         html.Div(
             [
-                html.Button(
-                    "Add Panel",
-                    id="add-panel",
-                    n_clicks=0,
+                create_globalselection(
+                    len(gsa_df),
+                    len(mmes_df),
+                    matched_count,
+                    analysis_methods,
+                    formations,
+                    boreholes,
                 ),
 
-                RGLLayout(
-                    id="panel-container",
-                    layout=[],
+                html.Div(
+                    [
+                        html.Button(
+                            "Add Panel",
+                            id="add-panel",
+                            n_clicks=0,
+                            style={
+                                "marginBottom": "15px",
+                            },
+                        ),
+
+                        html.Div(
+                            [
+                                RGLLayout(
+                                    id="panel-container",
+                                    layout=[],
+                                ),
+                            ],
+                            style={
+                                "overflowX": "auto",
+                                "overflowY": "hidden",
+                                "width": "100%",
+                            },
+                        ),
+                    ],
+                    style={
+                        "flex": 1,
+                        "padding": "20px",
+                        "minWidth": 0,
+                        "overflowX": "auto",
+                    },
                 ),
             ],
             style={
-                "width": "75%",
-                "display": "inline-block",
-                "padding": "20px",
+                "display": "flex",
+                "alignItems": "flex-start",
+                "width": "100%",
             },
         ),
     ]
@@ -370,9 +392,6 @@ def modify_sample_selection(
     Input("panel-store", "data"),
 )
 def render_panels(panel_data):
-
-    print(panel_data)
-
     panels = []
 
     for display_number, panel in enumerate(panel_data, start=1):
@@ -389,14 +408,15 @@ def render_panels(panel_data):
 
     return panels
 
+
 @app.callback(
     Output("layout-store", "data"),
     Input("panel-container", "layout"),
     prevent_initial_call=True,
 )
 def store_layout(layout):
-    print("LAYOUT CALLBACK:", layout)
     return layout
+
 
 @app.callback(
     Output("panel-store", "data"),
@@ -595,11 +615,10 @@ def update_graphs(
         layout_data,
         panel_data,
 ):
-
     if (
-        panel_data is None
-        or chart_types is None
-        or len(panel_data) != len(chart_types)
+            panel_data is None
+            or chart_types is None
+            or len(panel_data) != len(chart_types)
     ):
         raise PreventUpdate
 
@@ -690,14 +709,30 @@ def update_graphs(
             )
 
         if chart_type == "Sample Information":
-            contents.append(fig)
+            contents.append(
+                html.Div(
+                    fig,
+                    style={
+                        "flex": "1 1 auto",
+                        "height": "100%",
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "minHeight": 0,
+                    },
+                )
+            )
 
-        else:
+        elif chart_type == "Grain Size Log":
 
             contents.append(
                 dcc.Graph(
                     figure=fig,
+                    responsive=False,
+                    style={
+                        "width": "100%",
+                    },
                     config={
+                        "responsive": True,
                         "toImageButtonOptions": {
                             "format": "png",
                             "filename": (
@@ -710,6 +745,49 @@ def update_graphs(
                 )
             )
 
+        else:
+
+            contents.append(
+
+                dcc.Graph(
+
+                    figure=fig,
+
+                    responsive=True,
+
+                    style={
+
+                        "height": "100%",
+
+                        "width": "100%",
+
+                    },
+
+                    config={
+
+                        "responsive": True,
+
+                        "toImageButtonOptions": {
+
+                            "format": "png",
+
+                            "filename": (
+
+                                f"MGS_GSA_"
+
+                                f"{chart_type.replace(' ', '_')}"
+
+                            ),
+
+                            "scale": 2,
+
+                        },
+
+                    },
+
+                )
+
+            )
     return contents
 
 
@@ -731,7 +809,6 @@ def update_psd_settings(
         breaks,
         panel_data,
 ):
-
     if (
             panel_data is None
             or legends is None
@@ -827,7 +904,6 @@ def update_ternary_settings(
         show_usda,
         panel_data,
 ):
-
     if (
             panel_data is None
             or mastersizer_breaks is None

@@ -76,6 +76,13 @@ def make_psd_plot(
         xaxis_title="Grain Size (µm)",
         yaxis_title="Percent Passing (%)",
         hovermode="closest",
+        autosize=True,
+        margin=dict(
+            l=50,
+            r=20,
+            t=40,
+            b=50,
+        ),
     )
 
     if x_axis == "log":

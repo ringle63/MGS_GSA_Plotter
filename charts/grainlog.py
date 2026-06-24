@@ -105,14 +105,20 @@ def make_grain_log(
             )
         )
 
-    figure_height = max(
-        300,
-        len(y_labels) * 18,
+    sample_height = 18
+    figure_height = (
+            len(y_labels) * sample_height
+            + 90
     )
+
+    fig.layout.meta = {
+        "figure_height": figure_height
+    }
 
     fig.update_layout(
         title="Grain Size Log",
 
+        autosize=False,
         height=figure_height,
 
         barmode="stack",
@@ -138,6 +144,11 @@ def make_grain_log(
             t=50,
             b=40,
         ),
+    )
+
+    print(
+        f"Samples: {len(y_labels)}, "
+        f"Figure height: {figure_height}"
     )
 
     return fig

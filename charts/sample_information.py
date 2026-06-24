@@ -169,7 +169,7 @@ def make_sample_information(
         style_table={
             "overflowX": "auto",
             "overflowY": "auto",
-            "height": "400px",
+            "height": "100%",
             "width": "100%",
             "minWidth": "100%",
         },

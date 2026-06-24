@@ -9,19 +9,34 @@ def create_panel(
         borehole_options,
         sample_options,
 ):
+    graph_style = {
+        "display": "flex",
+        "flexDirection": "column",
+        "minHeight": 0,
+    }
+
+    if panel["chart_type"] != "Grain Size Log":
+        graph_style.update({
+            "flex": "1",
+            "height": "100%",
+        })
+
     graph = html.Div(
         id={
             "type": "panel-content",
             "index": panel["id"],
         },
+        style=graph_style,
     )
 
     if panel["chart_type"] == "Grain Size Log":
         graph = html.Div(
             graph,
             style={
-                "height": "400px",
-                "overflowY": "scroll",
+                "height": "100%",
+                "flex": "1 1 auto",
+                "overflowY": "auto",
+                "minHeight": 0,
             },
         )
 
@@ -515,7 +530,12 @@ def create_panel(
                     graph,
 
                 ],
-
+                style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "flex": "1 1 auto",
+                    "minHeight": 0,
+                },
             ),
 
         ],
@@ -524,5 +544,9 @@ def create_panel(
             "border": "1px solid lightgray",
             "padding": "20px",
             "marginBottom": "20px",
-        },
+            "height": "100%",
+            "display": "flex",
+            "flexDirection": "column",
+            "minHeight": 0,
+        }
     )

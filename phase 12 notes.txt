@@ -1,22 +1,66 @@
 phase 12
-responsive screen width + allow to go wider with scroll.
-collapsible or resizeable global control
 hover buttons
+add 50um break option
+resize grain size log with panel
+median/ standard deviation of PSD lines (group by)
+organize legend items
+
+
+
+LOW PRIORITY
 label cleanup
 box color
-collapsible all options
 hitching/updating redrawing on all graphs when changing settings
+more reference breaks+labels
 
-reverse ternary values
-add usda boundaries
+collapsible or resizable global control
+PCA Analysis
+Map Link
 
 
-data fixes
+DATA FIXES
 pipette 2 break
 mmes to lab matches
+add sg and prim lith to gsa_lab
+add Scahetzl data
 
 
 
 
 DONE
 show legend button on ternary doesn't works
+reverse ternary values
+add usda boundaries
+collapsible all options
+responsive screen width + allow to go wider with scroll.
+
+
+
+Otimization
+1.
+
+Pre-convert IDs to string once.
+
+2.
+
+Use Scattergl for PSD charts.
+
+3.
+
+Cache filtered datasets.
+
+4.
+
+Stop redrawing panels that didn't change.
+
+5.
+
+Auto-disable legends over ~200 samples.
+
+6.
+
+Eventually move to MATCH callbacks.
+
+
+
+

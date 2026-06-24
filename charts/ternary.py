@@ -66,6 +66,13 @@ def make_ternary_plot(
 
         autosize=True,
 
+        margin=dict(
+            l=20,
+            r=20,
+            t=40,
+            b=20,
+        ),
+
         ternary=dict(
             sum=100,
 

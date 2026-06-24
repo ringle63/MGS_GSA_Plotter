@@ -2,12 +2,12 @@ from dash import html, dcc
 
 
 def create_globalselection(
-    gsa_count,
-    mmes_count,
-    matched_count,
-    analysis_methods,
-    formations,
-    boreholes,
+        gsa_count,
+        mmes_count,
+        matched_count,
+        analysis_methods,
+        formations,
+        boreholes,
 ):
     return html.Div(
         [
@@ -92,9 +92,8 @@ def create_globalselection(
             ),
         ],
         style={
-            "width": "20%",
-            "display": "inline-block",
-            "verticalAlign": "top",
+            "width": "380px",
+            "flexShrink": 0,
             "padding": "20px",
             "borderRight": "1px solid lightgray",
         },
