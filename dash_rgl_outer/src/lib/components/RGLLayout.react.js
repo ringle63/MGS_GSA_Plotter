@@ -66,6 +66,24 @@ const RGLLayout = ({
             layout={currentLayout}
             cols={36}
             rowHeight={40}
+            onResizeStop={() => {
+                document
+                    .querySelectorAll('.js-plotly-plot')
+                    .forEach(g => {
+                        if (window.Plotly) {
+                            window.Plotly.Plots.resize(g);
+                        }
+                    });
+            }}
+            onDragStop={() => {
+                document
+                    .querySelectorAll('.js-plotly-plot')
+                    .forEach(g => {
+                        if (window.Plotly) {
+                            window.Plotly.Plots.resize(g);
+                        }
+                    });
+            }}
             style={{
                 minWidth: '100%',
                 width: '300%',
@@ -77,6 +95,10 @@ const RGLLayout = ({
 
             onLayoutChange={(newLayout) => {
                 setCurrentLayout(newLayout);
+
+                window.dispatchEvent(
+                    new Event('resize')
+                );
 
                 if (setProps) {
                     setProps({
@@ -116,6 +138,10 @@ const RGLLayout = ({
                             overflow: 'auto',
                             padding: '8px',
                             minWidth: 0,
+                            minHeight: 0,
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
                         }}
                     >
                         {child}
