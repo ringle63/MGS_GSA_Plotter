@@ -129,9 +129,22 @@ app.layout = html.Div(
                     "show_legend": True,
                     "show_labels": False,
 
+                    "show_samples": True,
+                    "show_mean": False,
+                    "group_by": "None",
+                    "show_std1": False,
+                    "show_std2": False,
+                    "show_std3": False,
+
+                    "show_centroids": False,
+                    "show_covariance": False,
+
                     "x_axis": "log",
 
+                    "show_break_2": False,
+                    "show_break_4": False,
                     "show_break_8": True,
+                    "show_break_50": False,
                     "show_break_62_5": True,
 
                     "mastersizer_break": 8,
@@ -445,8 +458,19 @@ def add_panel(
 
             "show_legend": True,
             "show_labels": False,
+            "show_samples": True,
+            "show_mean": False,
+            "group_by": "None",
+            "show_std1": False,
+            "show_std2": False,
+            "show_std3": False,
+            "show_centroids": False,
+            "show_covariance": False,
             "x_axis": "log",
+            "show_break_2": False,
+            "show_break_4": False,
             "show_break_8": True,
+            "show_break_50": False,
             "show_break_62_5": True,
 
             "mastersizer_break": 8,
@@ -656,25 +680,19 @@ def update_graphs(
         if chart_type == "PSD Undersize":
 
             fig = make_psd_plot(
+                gsa_df,
                 mmes_df,
                 panel_samples,
-                panel["show_legend"],
-                panel["show_labels"],
-                panel["x_axis"],
-                panel["show_break_8"],
-                panel["show_break_62_5"],
+                panel,
             )
 
         elif chart_type == "PSD Frequency":
 
             fig = make_frequency_plot(
+                gsa_df,
                 mmes_df,
                 panel_samples,
-                panel["show_legend"],
-                panel["show_labels"],
-                panel["x_axis"],
-                panel["show_break_8"],
-                panel["show_break_62_5"],
+                panel,
             )
 
         elif chart_type == "Ternary":
@@ -800,6 +818,14 @@ def update_graphs(
     [
         Input({"type": "show-legend", "index": ALL}, "value"),
         Input({"type": "show-labels", "index": ALL}, "value"),
+        Input({"type": "show-samples", "index": ALL}, "value"),
+        Input({"type": "show-mean", "index": ALL}, "value"),
+        Input({"type": "show-std1", "index": ALL}, "value"),
+        Input({"type": "show-std2", "index": ALL}, "value"),
+        Input({"type": "show-std3", "index": ALL}, "value"),
+        Input({"type": "group-by", "index": ALL}, "value"),
+        Input({"type": "show-centroids", "index": ALL}, "value"),
+        Input({"type": "show-covariance", "index": ALL}, "value"),
         Input({"type": "x-axis", "index": ALL}, "value"),
         Input({"type": "reference-breaks", "index": ALL}, "value"),
     ],
@@ -809,6 +835,14 @@ def update_graphs(
 def update_psd_settings(
         legends,
         labels,
+        samples,
+        means,
+        std1,
+        std2,
+        std3,
+        groups,
+        centroids,
+        covariance,
         axes,
         breaks,
         panel_data,
@@ -821,6 +855,14 @@ def update_psd_settings(
             or breaks is None
             or len(panel_data) != len(legends)
             or len(panel_data) != len(labels)
+            or len(panel_data) != len(samples)
+            or len(panel_data) != len(means)
+            or len(panel_data) != len(std1)
+            or len(panel_data) != len(std2)
+            or len(panel_data) != len(std3)
+            or len(panel_data) != len(groups)
+            or len(panel_data) != len(centroids)
+            or len(panel_data) != len(covariance)
             or len(panel_data) != len(axes)
             or len(panel_data) != len(breaks)
     ):
@@ -835,14 +877,62 @@ def update_psd_settings(
                 "labels" in labels[i]
         )
 
+        panel["show_samples"] = (
+                "samples" in (samples[i] or [])
+        )
+
+        panel["show_mean"] = (
+                "mean" in (means[i] or [])
+        )
+
+        panel["show_std1"] = (
+                "std1" in (std1[i] or [])
+        )
+
+        panel["show_std2"] = (
+                "std2" in (std2[i] or [])
+        )
+
+        panel["show_std3"] = (
+                "std3" in (std3[i] or [])
+        )
+
+        panel["group_by"] = (
+            groups[i]
+            if groups[i] is not None
+            else "None"
+        )
+
+        panel["show_centroids"] = (
+                "centroids"
+                in (centroids[i] or [])
+        )
+
+        panel["show_covariance"] = (
+                "covariance"
+                in (covariance[i] or [])
+        )
+
         panel["x_axis"] = axes[i]
 
+        panel["show_break_2"] = (
+                "2" in (breaks[i] or [])
+        )
+
+        panel["show_break_4"] = (
+                "4" in (breaks[i] or [])
+        )
+
         panel["show_break_8"] = (
-                "8" in breaks[i]
+                "8" in (breaks[i] or [])
+        )
+
+        panel["show_break_50"] = (
+                "50" in (breaks[i] or [])
         )
 
         panel["show_break_62_5"] = (
-                "62.5" in breaks[i]
+                "62.5" in (breaks[i] or [])
         )
 
     return panel_data

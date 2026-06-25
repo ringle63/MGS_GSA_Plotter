@@ -23,13 +23,34 @@ def make_grain_log(
         .isin(selected_samples)
     ]
 
+    group_by = panel.get(
+        "group_by",
+        "None",
+    )
+
     subset = (
         subset.assign(
             _sort_key=subset["GSA_ID"]
             .apply(gsa_sort_key)
         )
-        .sort_values("_sort_key")
-        .drop(columns="_sort_key")
+    )
+
+    if (
+            group_by
+            and group_by != "None"
+    ):
+        subset = (
+            subset.sort_values(
+                [group_by, "_sort_key"]
+            )
+        )
+    else:
+        subset = (
+            subset.sort_values("_sort_key")
+        )
+
+    subset = subset.drop(
+        columns="_sort_key"
     )
 
     settings = {
@@ -68,6 +89,12 @@ def make_grain_log(
 
     y_labels = []
 
+    group_line_positions = []
+
+    group_label_positions = []
+
+    last_group = None
+
     class_values = {
         cls: []
         for cls in classes_order
@@ -76,6 +103,16 @@ def make_grain_log(
     customdata = []
 
     for _, row in subset.iterrows():
+
+        current_group = None
+
+        if (
+                group_by
+                and group_by != "None"
+        ):
+            current_group = str(
+                row[group_by]
+            )
 
         mmes_row = mmes_lookup.get(
             str(row["GSA_ID"])
@@ -89,6 +126,54 @@ def make_grain_log(
 
         if grain is None:
             continue
+
+        if (
+                current_group
+                != last_group
+        ):
+            if last_group is not None:
+
+                spacer = ""
+
+                y_labels.append(
+                    spacer
+                )
+
+                customdata.append(
+                    [None] * 11
+                )
+
+                for cls in classes_order:
+                    class_values[cls].append(
+                        0
+                    )
+
+            header = (
+                f"── {current_group} ──"
+            )
+
+            y_labels.append(
+                header
+            )
+
+            customdata.append(
+                [None] * 11
+            )
+
+            for cls in classes_order:
+                class_values[cls].append(
+                    0
+                )
+
+            group_label_positions.append(
+                header
+            )
+
+            group_line_positions.append(
+                header
+            )
+
+            last_group = current_group
 
         sample = row["GSA_ID"]
 
@@ -124,36 +209,53 @@ def make_grain_log(
                 name=cls,
                 marker_color=colors[cls],
                 width=0.9,
+                hoverinfo="skip",
 
                 customdata=customdata,
 
-                hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "Method: %{customdata[1]}<br>"
-                    "Break: %{customdata[2]}<br>"
-                    "<br>"
-                    "Gravel: %{customdata[3]:.1f}%<br>"
-                    "Very Coarse Sand: %{customdata[4]:.1f}%<br>"
-                    "Coarse Sand: %{customdata[5]:.1f}%<br>"
-                    "Medium Sand: %{customdata[6]:.1f}%<br>"
-                    "Fine Sand: %{customdata[7]:.1f}%<br>"
-                    "Very Fine Sand: %{customdata[8]:.1f}%<br>"
-                    "Silt: %{customdata[9]:.1f}%<br>"
-                    "Clay: %{customdata[10]:.1f}%"
-                    "<extra></extra>"
-                ),
+                hovertemplate=[
+                    (
+                        "<extra></extra>"
+                        if row[0] is None
+                        else
+                        (
+                            "<b>%{customdata[0]}</b><br>"
+                            "Method: %{customdata[1]}<br>"
+                            "Break: %{customdata[2]}<br>"
+                            "<br>"
+                            "Gravel: %{customdata[3]:.1f}%<br>"
+                            "Very Coarse Sand: %{customdata[4]:.1f}%<br>"
+                            "Coarse Sand: %{customdata[5]:.1f}%<br>"
+                            "Medium Sand: %{customdata[6]:.1f}%<br>"
+                            "Fine Sand: %{customdata[7]:.1f}%<br>"
+                            "Very Fine Sand: %{customdata[8]:.1f}%<br>"
+                            "Silt: %{customdata[9]:.1f}%<br>"
+                            "Clay: %{customdata[10]:.1f}%"
+                            "<extra></extra>"
+                        )
+                    )
+                    for row in customdata
+                ],
             )
         )
 
     sample_height = 18
     figure_height = (
-            len(y_labels) * sample_height
-            + 90
+            len(y_labels)
+            * sample_height
+            + 120
     )
 
     fig.layout.meta = {
         "figure_height": figure_height
     }
+
+    for label in group_line_positions:
+        fig.add_hline(
+            y=label,
+            line_width=1.5,
+            line_color="black",
+        )
 
     fig.update_layout(
         title="Grain Size Log",
@@ -176,6 +278,9 @@ def make_grain_log(
             side="right",
             title="",
             automargin=True,
+            tickfont=dict(
+                size=11,
+            ),
         ),
 
         margin=dict(

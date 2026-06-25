@@ -21,6 +21,37 @@ def create_panel(
             "height": "100%",
         })
 
+    chart_type = panel["chart_type"]
+
+    is_psd = chart_type in [
+        "PSD Undersize",
+        "PSD Frequency",
+    ]
+
+    is_ternary = (
+            chart_type == "Ternary"
+    )
+
+    is_grain_log = (
+            chart_type == "Grain Size Log"
+    )
+
+    supports_grouping = (
+            is_psd
+            or is_ternary
+            or is_grain_log
+    )
+
+    supports_grain_breaks = (
+            is_ternary
+            or is_grain_log
+    )
+
+    supports_sample_display = (
+            is_psd
+            or is_ternary
+    )
+
     graph = html.Div(
         id={
             "type": "panel-content",
@@ -251,64 +282,393 @@ def create_panel(
                             # PSD-specific controls
                             html.Div(
                                 [
-                                    dcc.Checklist(
-                                        id={
-                                            "type": "show-legend",
-                                            "index": panel["id"],
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-legend",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Legend",
+                                                "value": "legend",
+                                            }],
+                                            value=["legend"] if panel["show_legend"] else [],
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if supports_sample_display
+                                                else "none"
+                                            )
                                         },
-                                        options=[{
-                                            "label": "Show Legend",
-                                            "value": "legend",
-                                        }],
-                                        value=["legend"] if panel["show_legend"] else [],
                                     ),
 
-                                    dcc.Checklist(
-                                        id={
-                                            "type": "show-labels",
-                                            "index": panel["id"],
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-labels",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Sample Labels",
+                                                "value": "labels",
+                                            }],
+                                            value=["labels"] if panel["show_labels"] else [],
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if supports_sample_display
+                                                else "none"
+                                            )
                                         },
-                                        options=[{
-                                            "label": "Show Sample Labels",
-                                            "value": "labels",
-                                        }],
-                                        value=["labels"] if panel["show_labels"] else [],
                                     ),
 
-                                    html.Label("X Axis"),
-
-                                    dcc.RadioItems(
-                                        id={
-                                            "type": "x-axis",
-                                            "index": panel["id"],
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-samples",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Samples",
+                                                "value": "samples",
+                                            }],
+                                            value=(
+                                                ["samples"]
+                                                if panel.get(
+                                                    "show_samples",
+                                                    True,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if supports_sample_display
+                                                else "none"
+                                            )
                                         },
-                                        options=[
-                                            {"label": "Log", "value": "log"},
-                                            {"label": "Linear", "value": "linear"},
-                                            {"label": "Phi", "value": "phi"},
-                                        ],
-                                        value=panel["x_axis"],
-                                        inline=True,
                                     ),
 
-                                    html.Label("Reference Breaks"),
-
-                                    dcc.Checklist(
-                                        id={
-                                            "type": "reference-breaks",
-                                            "index": panel["id"],
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-mean",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Mean",
+                                                "value": "mean",
+                                            }],
+                                            value=(
+                                                ["mean"]
+                                                if panel.get(
+                                                    "show_mean",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if panel["chart_type"] in [
+                                                    "PSD Undersize",
+                                                    "PSD Frequency",
+                                                ]
+                                                else "none"
+                                            )
                                         },
-                                        options=[
-                                            {"label": "8 µm", "value": "8"},
-                                            {"label": "62.5 µm", "value": "62.5"},
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-std1",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show ±1 Std Dev",
+                                                "value": "std1",
+                                            }],
+                                            value=(
+                                                ["std1"]
+                                                if panel.get(
+                                                    "show_std1",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_psd
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-std2",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show ±2 Std Dev",
+                                                "value": "std2",
+                                            }],
+                                            value=(
+                                                ["std2"]
+                                                if panel.get(
+                                                    "show_std2",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_psd
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-std3",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show ±3 Std Dev",
+                                                "value": "std3",
+                                            }],
+                                            value=(
+                                                ["std3"]
+                                                if panel.get(
+                                                    "show_std3",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_psd
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        [
+                                            html.Label("Group By"),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type": "group-by",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {
+                                                        "label": "None",
+                                                        "value": "None",
+                                                    },
+                                                    {
+                                                        "label": "Formation",
+                                                        "value": "formation",
+                                                    },
+                                                    {
+                                                        "label": "Borehole",
+                                                        "value": "BoreholeID",
+                                                    },
+                                                    {
+                                                        "label": "Analysis Method",
+                                                        "value": "analysis_method",
+                                                    },
+                                                    {
+                                                        "label": "USDA Class",
+                                                        "value": "class_usda",
+                                                    },
+                                                ],
+                                                value=panel.get(
+                                                    "group_by",
+                                                    "None",
+                                                ),
+                                                clearable=False,
+                                            ),
                                         ],
-                                        value=[
-                                            x for x in [
-                                                "8" if panel["show_break_8"] else None,
-                                                "62.5" if panel["show_break_62_5"] else None,
-                                            ]
-                                            if x is not None
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if panel["chart_type"] in [
+                                                    "PSD Undersize",
+                                                    "PSD Frequency",
+                                                    "Grain Size Log",
+                                                    "Ternary",
+                                                ]
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-centroids",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Group Centroids",
+                                                "value": "centroids",
+                                            }],
+                                            value=(
+                                                ["centroids"]
+                                                if panel.get(
+                                                    "show_centroids",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if panel["chart_type"] == "Ternary"
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-covariance",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Covariance Ellipses",
+                                                "value": "covariance",
+                                            }],
+                                            value=(
+                                                ["covariance"]
+                                                if panel.get(
+                                                    "show_covariance",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_ternary
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Br(),
+
+                                    html.Div(
+                                        [
+                                            html.Label("X Axis"),
+
+                                            dcc.RadioItems(
+                                                id={
+                                                    "type": "x-axis",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {"label": "Log", "value": "log"},
+                                                    {"label": "Linear", "value": "linear"},
+                                                    {"label": "Phi", "value": "phi"},
+                                                ],
+                                                value=panel["x_axis"],
+                                                inline=True,
+                                            ),
                                         ],
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_psd
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        [
+                                            html.Label("Reference Breaks"),
+
+                                            dcc.Checklist(
+                                                id={
+                                                    "type": "reference-breaks",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {"label": "2 µm", "value": "2"},
+                                                    {"label": "4 µm", "value": "4"},
+                                                    {"label": "8 µm", "value": "8"},
+                                                    {"label": "50 µm", "value": "50"},
+                                                    {"label": "62.5 µm", "value": "62.5"},
+                                                ],
+                                                value=[
+                                                    x for x in [
+
+                                                        "2"
+                                                        if panel.get(
+                                                            "show_break_2",
+                                                            False,
+                                                        )
+                                                        else None,
+
+                                                        "4"
+                                                        if panel.get(
+                                                            "show_break_4",
+                                                            False,
+                                                        )
+                                                        else None,
+
+                                                        "8"
+                                                        if panel.get(
+                                                            "show_break_8",
+                                                            False,
+                                                        )
+                                                        else None,
+
+                                                        "50"
+                                                        if panel.get(
+                                                            "show_break_50",
+                                                            False,
+                                                        )
+                                                        else None,
+
+                                                        "62.5"
+                                                        if panel.get(
+                                                            "show_break_62_5",
+                                                            False,
+                                                        )
+                                                        else None,
+                                                    ]
+                                                    if x is not None
+                                                ],
+                                            ),
+                                        ],
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_psd
+                                                else "none"
+                                            )
+                                        },
                                     ),
                                 ],
                                 style={
@@ -389,31 +749,38 @@ def create_panel(
                                     html.P(
                                         "Dry Sieve: Clay = 0, Silt = Fines_0_63"
                                     ),
-                                    dcc.Checklist(
-                                        id={
-                                            "type": "show-usda",
-                                            "index": panel["id"],
-                                        },
-                                        options=[
-                                            {
-                                                "label": "Show USDA Classes",
-                                                "value": "usda",
-                                            }
-                                        ],
-                                        value=(
-                                            ["usda"]
-                                            if panel["show_usda_triangle"]
-                                            else []
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
+                                                "type": "show-usda",
+                                                "index": panel["id"],
+                                            },
+                                            options=[
+                                                {
+                                                    "label": "Show USDA Classes",
+                                                    "value": "usda",
+                                                }
+                                            ],
+                                            value=(
+                                                ["usda"]
+                                                if panel["show_usda_triangle"]
+                                                else []
+                                            ),
                                         ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_ternary
+                                                else "none"
+                                            )
+                                        },
                                     ),
                                 ],
                                 style={
                                     "display": (
                                         "block"
-                                        if panel["chart_type"] in [
-                                            "Ternary",
-                                            "Grain Size Log",
-                                        ]
+                                        if supports_grain_breaks
                                         else "none"
                                     )
                                 },

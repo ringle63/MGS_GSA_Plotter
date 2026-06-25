@@ -1,9 +1,8 @@
 phase 12
 hover buttons
-add 50um break option
-resize grain size log with panel
-median/ standard deviation of PSD lines (group by)
-organize legend items
+
+add filters
+add reference break visual lines and labels
 
 
 
@@ -12,7 +11,7 @@ label cleanup
 box color
 hitching/updating redrawing on all graphs when changing settings
 more reference breaks+labels
-
+resize grain size log with panel
 collapsible or resizable global control
 PCA Analysis
 Map Link
@@ -24,7 +23,7 @@ mmes to lab matches
 add sg and prim lith to gsa_lab
 add Scahetzl data
 
-
+mastersizer need 4-50 split
 
 
 DONE
@@ -33,7 +32,10 @@ reverse ternary values
 add usda boundaries
 collapsible all options
 responsive screen width + allow to go wider with scroll.
-
+grainsizelog hover
+add 50um break option
+organize legend items
+median/ standard deviation of PSD lines (group by) +centroid and covariance
 
 
 Otimization
