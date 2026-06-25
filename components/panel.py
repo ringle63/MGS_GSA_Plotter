@@ -1,5 +1,10 @@
 from dash import html, dcc
 
+from logic.filters import (
+    GROUP_BY_FIELDS,
+    NUMERIC_FIELDS,
+)
+
 
 def create_panel(
         panel,
@@ -8,6 +13,7 @@ def create_panel(
         formation_options,
         borehole_options,
         sample_options,
+        group_by_options,
 ):
     graph_style = {
         "display": "flex",
@@ -476,28 +482,7 @@ def create_panel(
                                                     "type": "group-by",
                                                     "index": panel["id"],
                                                 },
-                                                options=[
-                                                    {
-                                                        "label": "None",
-                                                        "value": "None",
-                                                    },
-                                                    {
-                                                        "label": "Formation",
-                                                        "value": "formation",
-                                                    },
-                                                    {
-                                                        "label": "Borehole",
-                                                        "value": "BoreholeID",
-                                                    },
-                                                    {
-                                                        "label": "Analysis Method",
-                                                        "value": "analysis_method",
-                                                    },
-                                                    {
-                                                        "label": "USDA Class",
-                                                        "value": "class_usda",
-                                                    },
-                                                ],
+                                                options=group_by_options,
                                                 value=panel.get(
                                                     "group_by",
                                                     "None",
@@ -823,69 +808,178 @@ def create_panel(
 
                             html.Div(
                                 [
-                                    html.Hr(),
+                                    html.Div(
+                                        [
+                                            html.H4("Panel Query Builder"),
 
-                                    html.Label("Analysis Method"),
+                                            html.Label("Field"),
 
-                                    dcc.Dropdown(
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type": "panel-filter-field",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {
+                                                        "label": label,
+                                                        "value": field,
+                                                    }
+                                                    for field, label in (
+                                                            GROUP_BY_FIELDS
+                                                            | NUMERIC_FIELDS
+                                                    ).items()
+                                                ],
+                                                placeholder="Field",
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label("Operator"),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type": "panel-filter-operator",
+                                                    "index": panel["id"],
+                                                },
+                                                value="IN",
+                                                clearable=False,
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label("Value"),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type": "panel-filter-dropdown",
+                                                    "index": panel["id"],
+                                                },
+                                                multi=True,
+                                            ),
+
+                                            dcc.Input(
+                                                id={
+                                                    "type": "panel-filter-text",
+                                                    "index": panel["id"],
+                                                },
+                                                type="text",
+                                                placeholder="Enter text...",
+                                                style={
+                                                    "display": "none",
+                                                    "width": "100%",
+                                                },
+                                            ),
+
+                                            dcc.Input(
+                                                id={
+                                                    "type": "panel-filter-number",
+                                                    "index": panel["id"],
+                                                },
+                                                type="number",
+                                                placeholder="Value",
+                                                style={
+                                                    "display": "none",
+                                                    "width": "100%",
+                                                },
+                                            ),
+
+                                            html.Div(
+                                                [
+                                                    dcc.Input(
+                                                        id={
+                                                            "type": "panel-filter-min",
+                                                            "index": panel["id"],
+                                                        },
+                                                        type="number",
+                                                        placeholder="Minimum",
+                                                        style={
+                                                            "width": "48%",
+                                                        },
+                                                    ),
+                                                    dcc.Input(
+                                                        id={
+                                                            "type": "panel-filter-max",
+                                                            "index": panel["id"],
+                                                        },
+                                                        type="number",
+                                                        placeholder="Maximum",
+                                                        style={
+                                                            "width": "48%",
+                                                        },
+                                                    ),
+                                                ],
+                                                id={
+                                                    "type": "panel-filter-between",
+                                                    "index": panel["id"],
+                                                },
+                                                style={
+                                                    "display": "none",
+                                                    "justifyContent": "space-between",
+                                                },
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Button(
+                                                "Add Clause",
+                                                id={
+                                                    "type": "add-panel-filter",
+                                                    "index": panel["id"],
+                                                },
+                                                n_clicks=0,
+                                            ),
+
+                                            html.Br(),
+                                            html.Br(),
+
+                                            html.Button(
+                                                "Apply Filter",
+                                                id={
+                                                    "type": "apply-panel-filter",
+                                                    "index": panel["id"],
+                                                },
+                                                n_clicks=0,
+                                            ),
+
+                                            html.Button(
+                                                "Clear Filter",
+                                                id={
+                                                    "type": "clear-panel-filter",
+                                                    "index": panel["id"],
+                                                },
+                                                n_clicks=0,
+                                                style={
+                                                    "marginLeft": "10px",
+                                                },
+                                            ),
+
+                                            html.Div(
+                                                id={
+                                                    "type": "panel-filter-list",
+                                                    "index": panel["id"],
+                                                },
+                                                style={
+                                                    "marginTop": "10px",
+                                                },
+                                            ),
+                                        ],
                                         id={
-                                            "type": "override-methods",
+                                            "type": "panel-query-builder-container",
                                             "index": panel["id"],
                                         },
-                                        options=analysis_method_options,
-                                        value=panel["override_methods"],
-                                        multi=True,
-                                    ),
-
-                                    html.Br(),
-
-                                    html.Label("Formation"),
-
-                                    dcc.Dropdown(
-                                        id={
-                                            "type": "override-formations",
-                                            "index": panel["id"],
+                                        style={
+                                            "display": (
+                                                "none"
+                                                if panel["use_global"]
+                                                else "block"
+                                            )
                                         },
-                                        options=formation_options,
-                                        value=panel["override_formations"],
-                                        multi=True,
-                                    ),
-
-                                    html.Br(),
-
-                                    html.Label("Borehole"),
-
-                                    dcc.Dropdown(
-                                        id={
-                                            "type": "override-boreholes",
-                                            "index": panel["id"],
-                                        },
-                                        options=borehole_options,
-                                        value=panel["override_boreholes"],
-                                        multi=True,
-                                    ),
-
-                                    html.Br(),
-
-                                    html.Label("Sample"),
-
-                                    dcc.Dropdown(
-                                        id={
-                                            "type": "override-samples",
-                                            "index": panel["id"],
-                                        },
-                                        options=sample_options,
-                                        value=panel["override_samples"],
-                                        multi=True,
                                     ),
                                 ],
                                 style={
                                     "display": (
                                         "block"
-                                        if (
-                                                not panel["use_global"]
-                                                and panel.get("override_options_open", False)
-                                        )
+                                        if panel["override_options_open"]
                                         else "none"
                                     )
                                 },
@@ -910,6 +1004,18 @@ def create_panel(
 
                     # graph goes here
                     grain_log_header,
+
+                    html.Div(
+                        id={
+                            "type": "panel-selected-count",
+                            "index": panel["id"],
+                        },
+                        children="Selected Samples: 0",
+                        style={
+                            "fontWeight": "bold",
+                            "marginBottom": "10px",
+                        },
+                    ),
 
                     graph,
 

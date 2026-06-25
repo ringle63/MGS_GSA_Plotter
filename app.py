@@ -39,6 +39,14 @@ from logic.exporters import (
 
 from logic.panel_filters import (
     get_panel_samples,
+    apply_panel_filters,
+)
+
+from logic.filters import (
+    FILTER_FIELDS,
+    GROUP_BY_FIELDS,
+    NUMERIC_FIELDS,
+    apply_filters,
 )
 
 from dash.exceptions import PreventUpdate
@@ -83,6 +91,47 @@ borehole_options = [
     {"label": x, "value": x}
     for x in boreholes
 ]
+
+filter_options = {}
+
+for field in FILTER_FIELDS:
+
+    if field not in gsa_df.columns:
+        continue
+
+    values = sorted(
+        gsa_df[field]
+        .dropna()
+        .astype(str)
+        .unique()
+    )
+
+    filter_options[field] = [
+        {
+            "label": v,
+            "value": v,
+        }
+        for v in values
+    ]
+
+group_by_options = [
+    {
+        "label": "None",
+        "value": "None",
+    }
+]
+
+group_by_options.extend(
+    [
+        {
+            "label": label,
+            "value": field,
+        }
+        for field, label
+        in GROUP_BY_FIELDS.items()
+        if field in gsa_df.columns
+    ]
+)
 
 sample_options = [
     {"label": x, "value": x}
@@ -157,12 +206,25 @@ app.layout = html.Div(
                     "override_boreholes": [],
                     "override_samples": [],
 
+                    "panel_filters": [],
+                    "pending_panel_filters": [],
+
                     "graph_options_open": True,
                     "override_options_open": False,
 
                     "controls_open": True,
                 }
             ],
+        ),
+
+        dcc.Store(
+            id="global-filters",
+            data=[],
+        ),
+
+        dcc.Store(
+            id="pending-global-filters",
+            data=[],
         ),
 
         dcc.Store(
@@ -179,6 +241,7 @@ app.layout = html.Div(
                     analysis_methods,
                     formations,
                     boreholes,
+                    filter_options,
                 ),
 
                 html.Div(
@@ -225,35 +288,24 @@ app.layout = html.Div(
 
 
 @app.callback(
-    Output("global-samples", "options"),
-    [
-        Input("global-analysis-method", "value"),
-        Input("global-formation", "value"),
-        Input("global-borehole", "value"),
-    ],
+    Output(
+        "global-samples",
+        "options",
+    ),
+    Input(
+        "global-filters",
+        "data",
+    ),
 )
 def update_sample_options(
-        selected_methods,
-        selected_formations,
-        selected_boreholes,
+        filters,
 ):
-    filtered = gsa_df.copy()
+    filters = filters or []
 
-    # AND logic
-    if selected_methods:
-        filtered = filtered[
-            filtered["analysis_method"].astype(str).isin(selected_methods)
-        ]
-
-    if selected_formations:
-        filtered = filtered[
-            filtered["formation"].astype(str).isin(selected_formations)
-        ]
-
-    if selected_boreholes:
-        filtered = filtered[
-            filtered["BoreholeID"].astype(str).isin(selected_boreholes)
-        ]
+    filtered = apply_filters(
+        gsa_df,
+        filters,
+    )
 
     sample_ids = sorted(
         filtered["GSA_ID"]
@@ -263,10 +315,12 @@ def update_sample_options(
     )
 
     return [
-        {"label": sample, "value": sample}
+        {
+            "label": sample,
+            "value": sample,
+        }
         for sample in sample_ids
     ]
-
 
 @app.callback(
     Output(
@@ -372,6 +426,606 @@ def update_selected_count(selected_samples):
 
     return f"Selected Samples: {count}"
 
+@app.callback(
+    Output(
+        {
+            "type": "panel-selected-count",
+            "index": ALL,
+        },
+        "children",
+    ),
+    Input(
+        "panel-store",
+        "data",
+    ),
+    Input(
+        "global-samples",
+        "value",
+    ),
+)
+def update_panel_selected_counts(
+        panel_data,
+        global_samples,
+):
+    if not panel_data:
+        raise PreventUpdate
+
+    ctx = callback_context
+
+    if not ctx.outputs_list:
+        raise PreventUpdate
+
+    expected_outputs = len(
+        ctx.outputs_list
+    )
+
+    results = []
+
+    for panel in panel_data:
+
+        samples = get_panel_samples(
+            panel,
+            global_samples,
+            gsa_df,
+        )
+
+        if panel["use_global"]:
+            source = "Global"
+        else:
+            source = "Panel"
+
+        results.append(
+            f"{source} Selection: {len(samples)} samples"
+        )
+
+    if len(results) != expected_outputs:
+        raise PreventUpdate
+
+    return results
+
+@app.callback(
+    Output(
+        "global-filter-field",
+        "options",
+    ),
+    Input(
+        "global-filters",
+        "data",
+    ),
+)
+def load_filter_fields(_):
+
+    fields = {}
+
+    fields.update(FILTER_FIELDS)
+    fields.update(NUMERIC_FIELDS)
+
+    return [
+        {
+            "label": label,
+            "value": field,
+        }
+        for field, label
+        in fields.items()
+    ]
+
+@app.callback(
+    Output(
+        "global-filter-operator",
+        "options",
+    ),
+    Input(
+        "global-filter-field",
+        "value",
+    ),
+)
+def update_operator_options(
+        field,
+):
+    if field in NUMERIC_FIELDS:
+
+        return [
+            {"label": "=", "value": "="},
+            {"label": "!=", "value": "!="},
+            {"label": "<", "value": "<"},
+            {"label": "<=", "value": "<="},
+            {"label": ">", "value": ">"},
+            {"label": ">=", "value": ">="},
+            {"label": "BETWEEN", "value": "BETWEEN"},
+        ]
+
+    return [
+        {"label": "IN", "value": "IN"},
+        {"label": "NOT IN", "value": "NOT IN"},
+        {"label": "CONTAINS", "value": "CONTAINS"},
+    ]
+
+@app.callback(
+    Output(
+        "global-filter-dropdown",
+        "options",
+        allow_duplicate=True,
+    ),
+    Input(
+        "global-filter-field",
+        "value",
+    ),
+    State(
+        "global-filter-operator",
+        "value",
+    ),
+    prevent_initial_call=True,
+)
+def update_filter_values(
+        field,
+        operator,
+):
+    if operator == "CONTAINS":
+        raise PreventUpdate
+
+    if (
+            field is None
+            or field not in filter_options
+    ):
+        return []
+
+    return filter_options[field]
+
+@app.callback(
+    Output(
+        "pending-global-filters",
+        "data",
+    ),
+    Input(
+        "add-global-filter",
+        "n_clicks",
+    ),
+    Input(
+        "clear-global-filter",
+        "n_clicks",
+    ),
+    State(
+        "pending-global-filters",
+        "data",
+    ),
+    State(
+        "global-filter-field",
+        "value",
+    ),
+    State(
+        "global-filter-operator",
+        "value",
+    ),
+    State(
+        "global-filter-dropdown",
+        "value",
+    ),
+    State(
+        "global-filter-text",
+        "value",
+    ),
+    State(
+        "global-filter-number",
+        "value",
+    ),
+    State(
+        "global-filter-min",
+        "value",
+    ),
+    State(
+        "global-filter-max",
+        "value",
+    ),
+    prevent_initial_call=True,
+)
+def update_global_filters(
+        add_clicks,
+        clear_clicks,
+        filters,
+        field,
+        operator,
+        dropdown_value,
+        text_value,
+        number_value,
+        minimum_value,
+        maximum_value,
+):
+    trigger = (
+        callback_context
+        .triggered_id
+    )
+
+    filters = (
+            filters or []
+    )
+
+    if operator == "CONTAINS":
+
+        value = text_value
+
+    elif field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+
+            value = [
+                minimum_value,
+                maximum_value,
+            ]
+
+        else:
+
+            value = number_value
+
+    else:
+
+        value = dropdown_value
+
+    if trigger != "add-global-filter":
+        raise PreventUpdate
+
+    if field is None:
+        raise PreventUpdate
+
+    if operator == "BETWEEN":
+
+        if (
+                value[0] is None
+                or value[1] is None
+        ):
+            raise PreventUpdate
+
+    elif value in [
+        None,
+        [],
+        "",
+    ]:
+        raise PreventUpdate
+
+    new_clause = {
+        "field": field,
+        "operator": operator,
+        "value": value,
+        "logic": (
+            "AND"
+            if filters
+            else None
+        )
+    }
+
+    for existing in filters:
+
+        existing_value = existing["value"]
+
+        if isinstance(existing_value, list):
+            existing_value = sorted(existing_value)
+
+        compare_value = value
+
+        if isinstance(compare_value, list):
+            compare_value = sorted(compare_value)
+
+        if (
+                existing["field"] == field
+                and existing["operator"] == operator
+                and existing_value == compare_value
+        ):
+            raise PreventUpdate
+
+    new_filters = filters.copy()
+    new_filters.append(new_clause)
+
+    return new_filters
+
+@app.callback(
+    Output(
+        "global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "pending-global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        "clear-global-filter",
+        "n_clicks",
+    ),
+    prevent_initial_call=True,
+)
+def clear_global_filters(
+        n_clicks,
+):
+    return [], []
+
+@app.callback(
+    Output(
+        "global-filter-list",
+        "children",
+    ),
+    Input(
+        "pending-global-filters",
+        "data",
+    ),
+)
+def show_filter_list(
+        filters,
+):
+    if not filters:
+        return []
+
+    rows = []
+
+    for i, clause in enumerate(filters):
+
+        if (
+                clause["operator"] == "BETWEEN"
+        ):
+            values = (
+                f"{clause['value'][0]} "
+                f"and "
+                f"{clause['value'][1]}"
+            )
+
+        elif isinstance(
+                clause["value"],
+                list,
+        ):
+            if isinstance(clause["value"], list):
+
+                if len(clause["value"]) <= 5:
+
+                    values = ", ".join(
+                        map(str, clause["value"])
+                    )
+
+                else:
+
+                    values = (
+                            ", ".join(
+                                map(
+                                    str,
+                                    clause["value"][:5]
+                                )
+                            )
+                            + f" ... ({len(clause['value'])} selected)"
+                    )
+
+            if len(values) > 100:
+                values = values[:100] + "..."
+        else:
+            values = str(
+                clause["value"]
+            )
+
+        field_name = FILTER_FIELDS.get(
+            clause["field"],
+            clause["field"],
+        )
+
+        rows.append(
+            html.Div(
+                [
+                    html.Div(
+                        [
+
+                            html.Div(
+                                dcc.Dropdown(
+                                    id={
+                                        "type": "filter-logic",
+                                        "index": i,
+                                    },
+                                    options=[
+                                        {
+                                            "label": "AND",
+                                            "value": "AND",
+                                        },
+                                        {
+                                            "label": "OR",
+                                            "value": "OR",
+                                        },
+                                    ],
+                                    value=clause.get(
+                                        "logic",
+                                        "AND",
+                                    ),
+                                    clearable=False,
+                                    style={
+                                        "width": "90px",
+                                    },
+                                ),
+                                style={
+                                    "marginBottom": "5px",
+                                    "display":
+                                        "none"
+                                        if i == 0
+                                        else "block",
+                                },
+                            ),
+
+                            html.Span(
+                                f"{i + 1}. "
+                                f"{field_name} "
+                                f"{clause['operator']} "
+                                f"{values}"
+                            ),
+
+                        ],
+                        style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                            "flex": 1,
+                        },
+                    ),
+
+                    html.Button(
+                        "✕",
+                        id={
+                            "type": "remove-global-filter",
+                            "index": i,
+                        },
+                        n_clicks=0,
+                        style={
+                            "marginLeft": "10px",
+                            "padding": "0px 6px",
+                            "height": "24px",
+                            "lineHeight": "20px",
+                            "color": "red",
+                        },
+                    ),
+                ],
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "marginBottom": "5px",
+                },
+            )
+        )
+
+    return rows
+
+@app.callback(
+    Output(
+        "pending-global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "remove-global-filter",
+            "index": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "pending-global-filters",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def remove_global_filter(
+        clicks,
+        filters,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    print("REMOVE CALLBACK")
+    print(clicks)
+    print(filters)
+    print(callback_context.triggered_id)
+
+    trigger = callback_context.triggered_id
+
+    if (
+            trigger is None
+            or not filters
+    ):
+        raise PreventUpdate
+
+    index = trigger["index"]
+
+    new_filters = filters.copy()
+
+    new_filters.pop(index)
+
+    return new_filters
+
+@app.callback(
+    Output(
+        "pending-global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "filter-logic",
+            "index": ALL,
+        },
+        "value",
+    ),
+    State(
+        "pending-global-filters",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def update_filter_logic(
+        logic_values,
+        filters,
+):
+    if (
+            not filters
+            or len(filters)
+            != len(logic_values)
+    ):
+        raise PreventUpdate
+
+    new_filters = copy.deepcopy(
+        filters
+    )
+
+    for i, value in enumerate(
+            logic_values
+    ):
+        if i == 0:
+            continue
+
+        new_filters[i]["logic"] = value
+
+    return new_filters
+
+@app.callback(
+    Output(
+        "global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        "apply-global-filter",
+        "n_clicks",
+    ),
+    State(
+        "pending-global-filters",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def apply_global_filters(
+        n_clicks,
+        filters,
+):
+    return filters or []
+
+@app.callback(
+    Output(
+        "global-samples",
+        "value",
+        allow_duplicate=True,
+    ),
+    Input(
+        "global-samples",
+        "options",
+    ),
+    State(
+        "global-filters",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def auto_select_filtered(
+        options,
+        filters,
+):
+    if not filters:
+        return []
+
+    return [
+        option["value"]
+        for option in (
+            options or []
+        )
+    ]
 
 @app.callback(
     Output("global-samples", "value"),
@@ -400,6 +1054,73 @@ def modify_sample_selection(
 
     return []
 
+@app.callback(
+    Output(
+        "global-filter-dropdown",
+        "style",
+    ),
+    Output(
+        "global-filter-text",
+        "style",
+    ),
+    Output(
+        "global-filter-number",
+        "style",
+    ),
+    Output(
+        "global-filter-between",
+        "style",
+    ),
+    Input(
+        "global-filter-field",
+        "value",
+    ),
+    Input(
+        "global-filter-operator",
+        "value",
+    ),
+)
+def toggle_filter_inputs(
+        field,
+        operator,
+):
+    if field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+
+            return (
+                {"display": "none"},
+                {"display": "none"},
+                {"display": "none"},
+                {
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                },
+            )
+
+        return (
+            {"display": "none"},
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+        )
+
+    if operator == "CONTAINS":
+
+        return (
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+            {"display": "none"},
+        )
+
+    return (
+        {"width": "100%"},
+        {"display": "none"},
+        {"display": "none"},
+        {"display": "none"},
+    )
+
 
 @app.callback(
     Output("panel-container", "children"),
@@ -417,6 +1138,7 @@ def render_panels(panel_data):
                 formation_options,
                 borehole_options,
                 sample_options,
+                group_by_options,
             )
         )
 
@@ -482,6 +1204,9 @@ def add_panel(
             "override_formations": [],
             "override_boreholes": [],
             "override_samples": [],
+
+            "panel_filters": [],
+            "pending_panel_filters": [],
 
             "graph_options_open": True,
             "override_options_open": False,
@@ -613,6 +1338,742 @@ def update_use_global(
 
     return panel_data
 
+@app.callback(
+    Output(
+        {
+            "type": "panel-query-builder-container",
+            "index": ALL,
+        },
+        "style",
+    ),
+    Input(
+        {
+            "type": "use-global",
+            "index": ALL,
+        },
+        "value",
+    ),
+)
+def show_hide_panel_query_builder(
+        use_global_values,
+):
+    styles = []
+
+    for value in use_global_values:
+
+        if "global" in (value or []):
+
+            styles.append(
+                {
+                    "display": "none",
+                }
+            )
+
+        else:
+
+            styles.append(
+                {
+                    "display": "block",
+                }
+            )
+
+    return styles
+
+@app.callback(
+    Output(
+        {
+            "type": "panel-filter-operator",
+            "index": MATCH,
+        },
+        "options",
+    ),
+    Input(
+        {
+            "type": "panel-filter-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+)
+def update_panel_operator_options(
+        field,
+):
+    if field in NUMERIC_FIELDS:
+
+        return [
+            {"label": "=", "value": "="},
+            {"label": "!=", "value": "!="},
+            {"label": "<", "value": "<"},
+            {"label": "<=", "value": "<="},
+            {"label": ">", "value": ">"},
+            {"label": ">=", "value": ">="},
+            {"label": "BETWEEN", "value": "BETWEEN"},
+        ]
+
+    return [
+        {"label": "IN", "value": "IN"},
+        {"label": "NOT IN", "value": "NOT IN"},
+        {"label": "CONTAINS", "value": "CONTAINS"},
+    ]
+
+@app.callback(
+    Output(
+        {
+            "type": "panel-filter-dropdown",
+            "index": MATCH,
+        },
+        "options",
+    ),
+    Input(
+        {
+            "type": "panel-filter-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-operator",
+            "index": MATCH,
+        },
+        "value",
+    ),
+)
+def update_panel_filter_values(
+        field,
+        operator,
+):
+    if operator == "CONTAINS":
+        return []
+
+    if (
+            field is None
+            or field not in filter_options
+    ):
+        return []
+
+    return filter_options[field]
+
+@app.callback(
+    Output(
+        {
+            "type": "panel-filter-dropdown",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "panel-filter-text",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "panel-filter-number",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "panel-filter-between",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Input(
+        {
+            "type": "panel-filter-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    Input(
+        {
+            "type": "panel-filter-operator",
+            "index": MATCH,
+        },
+        "value",
+    ),
+)
+def toggle_panel_filter_inputs(
+        field,
+        operator,
+):
+    if field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+
+            return (
+                {"display": "none"},
+                {"display": "none"},
+                {"display": "none"},
+                {
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                },
+            )
+
+        return (
+            {"display": "none"},
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+        )
+
+    if operator == "CONTAINS":
+
+        return (
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+            {"display": "none"},
+        )
+
+    return (
+        {"width": "100%"},
+        {"display": "none"},
+        {"display": "none"},
+        {"display": "none"},
+    )
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "add-panel-filter",
+            "index": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "panel-filter-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-operator",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-dropdown",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-text",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-number",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-min",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-max",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    prevent_initial_call=True,
+)
+def add_panel_filter(
+        n_clicks,
+        panel_data,
+        field,
+        operator,
+        dropdown_value,
+        text_value,
+        number_value,
+        minimum_value,
+        maximum_value,
+):
+    panel_id = callback_context.triggered_id["index"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    filters = panel.get(
+        "pending_panel_filters",
+        [],
+    )
+
+    if operator == "CONTAINS":
+
+        value = text_value
+
+    elif field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+
+            value = [
+                minimum_value,
+                maximum_value,
+            ]
+
+        else:
+
+            value = number_value
+
+    else:
+
+        value = dropdown_value
+
+    if field is None:
+        raise PreventUpdate
+
+    if operator == "BETWEEN":
+
+        if (
+                value[0] is None
+                or value[1] is None
+        ):
+            raise PreventUpdate
+
+    elif value in [
+        None,
+        [],
+        "",
+    ]:
+        raise PreventUpdate
+
+    new_clause = {
+        "field": field,
+        "operator": operator,
+        "value": value,
+        "logic": (
+            "AND"
+            if filters
+            else None
+        ),
+    }
+
+    filters.append(
+        new_clause
+    )
+
+    panel["pending_panel_filters"] = filters
+
+    print(
+        panel["pending_panel_filters"]
+    )
+
+    return panel_data
+
+@app.callback(
+    Output(
+        {
+            "type": "panel-filter-list",
+            "index": MATCH,
+        },
+        "children",
+    ),
+    Input(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "panel-filter-list",
+            "index": MATCH,
+        },
+        "id",
+    ),
+)
+def show_panel_filter_list(
+        panel_data,
+        component_id,
+):
+    panel_id = component_id["index"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    filters = panel.get(
+        "pending_panel_filters",
+        [],
+    )
+
+    if not filters:
+        return []
+
+    rows = []
+
+    for i, clause in enumerate(filters):
+
+        if clause["operator"] == "BETWEEN":
+
+            values = (
+                f"{clause['value'][0]}"
+                f" and "
+                f"{clause['value'][1]}"
+            )
+
+        elif isinstance(
+                clause["value"],
+                list,
+        ):
+            if isinstance(clause["value"], list):
+
+                if len(clause["value"]) <= 5:
+
+                    values = ", ".join(
+                        map(str, clause["value"])
+                    )
+
+                else:
+
+                    values = (
+                            ", ".join(
+                                map(
+                                    str,
+                                    clause["value"][:5]
+                                )
+                            )
+                            + f" ... ({len(clause['value'])} selected)"
+                    )
+
+        else:
+            values = str(
+                clause["value"]
+            )
+
+        field_name = (
+                FILTER_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
+                or
+                NUMERIC_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
+        )
+
+        rows.append(
+            html.Div(
+                [
+                    html.Div(
+                        [
+
+                            html.Div(
+                                dcc.Dropdown(
+                                    id={
+                                        "type": "panel-filter-logic",
+                                        "index": i,
+                                        "panel": panel_id,
+                                    },
+                                    options=[
+                                        {
+                                            "label": "AND",
+                                            "value": "AND",
+                                        },
+                                        {
+                                            "label": "OR",
+                                            "value": "OR",
+                                        },
+                                    ],
+                                    value=clause.get(
+                                        "logic",
+                                        "AND",
+                                    ),
+                                    clearable=False,
+                                    style={
+                                        "width": "90px",
+                                    },
+                                ),
+                                style={
+                                    "display":
+                                        "none"
+                                        if i == 0
+                                        else "block",
+                                    "marginBottom": "5px",
+                                },
+                            ),
+
+                            html.Span(
+                                f"{i+1}. "
+                                f"{field_name} "
+                                f"{clause['operator']} "
+                                f"{values}"
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                            "flex": 1,
+                        },
+                    ),
+
+                    html.Button(
+                        "✕",
+                        id={
+                            "type": "remove-panel-filter",
+                            "index": i,
+                            "panel": panel_id,
+                        },
+                        n_clicks=0,
+                        style={
+                            "marginLeft": "10px",
+                            "padding": "0px 6px",
+                            "height": "24px",
+                            "lineHeight": "20px",
+                            "color": "red",
+                        },
+                    ),
+                ],
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "marginBottom": "5px",
+                },
+            )
+        )
+
+    return rows
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "remove-panel-filter",
+            "index": ALL,
+            "panel": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def remove_panel_filter(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    clause_index = trigger["index"]
+    panel_id = trigger["panel"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    filters = panel.get(
+        "pending_panel_filters",
+        []
+    )
+
+    if clause_index >= len(filters):
+        raise PreventUpdate
+
+    new_filters = filters.copy()
+    new_filters.pop(clause_index)
+
+    panel["pending_panel_filters"] = new_filters
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "panel-filter-logic",
+            "index": ALL,
+            "panel": ALL,
+        },
+        "value",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def update_panel_filter_logic(
+        logic_values,
+        panel_data,
+):
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    filters = panel.get(
+        "pending_panel_filters",
+        []
+    )
+
+    if not filters:
+        raise PreventUpdate
+
+    new_filters = copy.deepcopy(
+        filters
+    )
+
+    for i, value in enumerate(
+            logic_values
+    ):
+        if i == 0:
+            continue
+
+        if i < len(new_filters):
+            new_filters[i]["logic"] = value
+
+    panel["pending_panel_filters"] = new_filters
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "apply-panel-filter",
+            "index": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def apply_panel_filter_callback(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    panel_id = trigger["index"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    panel["panel_filters"] = copy.deepcopy(
+        panel.get(
+            "pending_panel_filters",
+            [],
+        )
+    )
+
+    return panel_data
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "clear-panel-filter",
+            "index": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def clear_panel_filters(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    panel_id = trigger["index"]
+
+    panel = next(
+        p
+        for p in panel_data
+        if p["id"] == panel_id
+    )
+
+    panel["pending_panel_filters"] = []
+    panel["panel_filters"] = []
+
+    return panel_data
 
 @app.callback(
     Output(
