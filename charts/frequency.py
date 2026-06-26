@@ -222,6 +222,10 @@ def make_frequency_plot(
                 "Mean": subset
             }
 
+            group_colors = {
+                "Mean": "#1f77b4"
+            }
+
         else:
 
             grouped = {

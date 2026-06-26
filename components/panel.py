@@ -11,6 +11,26 @@ def create_panel(
         display_number,
         group_by_options,
 ):
+    panel.setdefault(
+        "use_custom_groups",
+        False,
+    )
+
+    panel.setdefault(
+        "custom_groups",
+        []
+    )
+
+    panel.setdefault(
+        "pending_custom_groups",
+        []
+    )
+
+    panel.setdefault(
+        "custom_group_builder_open",
+        False
+    )
+
     graph_style = {
         "display": "flex",
         "flexDirection": "column",
@@ -498,6 +518,63 @@ def create_panel(
                                                 else "none"
                                             )
                                         },
+                                    ),
+
+                                    html.Br(),
+
+                                    dcc.Checklist(
+                                        id={
+                                            "type": "use-custom-groups",
+                                            "index": panel["id"],
+                                        },
+                                        options=[
+                                            {
+                                                "label": " Use Custom Groups",
+                                                "value": "custom",
+                                            }
+                                        ],
+                                        value=(
+                                            ["custom"]
+                                            if panel.get(
+                                                "use_custom_groups",
+                                                False,
+                                            )
+                                            else []
+                                        ),
+                                    ),
+
+                                    html.Div(
+                                        id={
+                                            "type": "custom-group-container",
+                                            "index": panel["id"],
+                                        },
+                                        style={
+                                            "display":
+                                                "block"
+                                                if panel.get(
+                                                    "use_custom_groups",
+                                                    False,
+                                                )
+                                                else "none",
+                                            "marginTop": "10px",
+                                        },
+                                        children=[
+                                            html.Button(
+                                                "Add Group",
+                                                id={
+                                                    "type": "add-custom-group",
+                                                    "index": panel["id"],
+                                                },
+                                                n_clicks=0,
+                                            ),
+
+                                            html.Div(
+                                                id={
+                                                    "type": "custom-group-list",
+                                                    "index": panel["id"],
+                                                },
+                                            ),
+                                        ],
                                     ),
 
                                     html.Div(

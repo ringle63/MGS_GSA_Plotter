@@ -50,6 +50,11 @@ from logic.filters import (
     NULL_VALUE,
 )
 
+from logic.custom_groups import (
+    build_custom_groups,
+    has_custom_groups,
+)
+
 from dash.exceptions import PreventUpdate
 
 from dash_rgl import RGLLayout
@@ -184,6 +189,11 @@ app.layout = html.Div(
 
                     "panel_filters": [],
                     "pending_panel_filters": [],
+                    "pending_custom_groups": [],
+                    "custom_group_builder_open": False,
+
+                    "use_custom_groups": False,
+                    "custom_groups": [],
 
                     "graph_options_open": True,
                     "override_options_open": False,
@@ -1071,6 +1081,11 @@ def add_panel(
 
             "panel_filters": [],
             "pending_panel_filters": [],
+            "pending_custom_groups": [],
+            "custom_group_builder_open": False,
+
+            "use_custom_groups": False,
+            "custom_groups": [],
 
             "graph_options_open": True,
             "override_options_open": False,
@@ -1482,13 +1497,24 @@ def add_panel_filter(
         minimum_value,
         maximum_value,
 ):
-    panel_id = callback_context.triggered_id["index"]
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     filters = panel.get(
         "pending_panel_filters",
@@ -1584,10 +1610,16 @@ def show_panel_filter_list(
     panel_id = component_id["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     filters = panel.get(
         "pending_panel_filters",
@@ -1769,10 +1801,16 @@ def remove_panel_filter(
     panel_id = trigger["panel"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     filters = panel.get(
         "pending_panel_filters",
@@ -1822,10 +1860,16 @@ def update_panel_filter_logic(
     panel_id = trigger["panel"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     filters = panel.get(
         "pending_panel_filters",
@@ -1884,10 +1928,16 @@ def apply_panel_filter_callback(
     panel_id = trigger["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     panel["panel_filters"] = copy.deepcopy(
         panel.get(
@@ -1929,10 +1979,16 @@ def clear_panel_filters(
     panel_id = trigger["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     panel["pending_panel_filters"] = []
     panel["panel_filters"] = []
@@ -2413,10 +2469,16 @@ def toggle_panel_sections(
     panel_id = trigger["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     if trigger["type"] == "toggle-controls":
 
@@ -2438,7 +2500,201 @@ def toggle_panel_sections(
 
     return panel_data
 
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-container",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Input(
+        {
+            "type": "use-custom-groups",
+            "index": MATCH,
+        },
+        "value",
+    ),
+)
+def toggle_custom_groups(
+        values,
+):
+    if "custom" in (
+            values or []
+    ):
+        return {
+            "display": "block",
+            "marginTop": "10px",
+        }
 
+    return {
+        "display": "none",
+        "marginTop": "10px",
+    }
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "use-custom-groups",
+            "index": ALL,
+        },
+        "value",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def update_custom_group_toggle(
+        values,
+        panel_data,
+):
+    for panel, value in zip(
+            panel_data,
+            values,
+    ):
+        panel[
+            "use_custom_groups"
+        ] = (
+            "custom"
+            in (value or [])
+        )
+
+    return panel_data
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "add-custom-group",
+            "index": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def add_custom_group(
+        clicks,
+        panel_data,
+):
+    trigger = (
+        callback_context
+        .triggered_id
+    )
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["index"]
+
+    for panel in panel_data:
+
+        if (
+                panel["id"]
+                != panel_id
+        ):
+            continue
+
+        groups = panel.setdefault(
+            "custom_groups",
+            [],
+        )
+
+        if len(groups) >= 20:
+            break
+
+        groups.append(
+            {
+                "name":
+                    f"Group {len(groups)+1}",
+                "filters": [],
+            }
+        )
+
+        break
+
+    return panel_data
+
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-list",
+            "index": MATCH,
+        },
+        "children",
+    ),
+    Input(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "custom-group-list",
+            "index": MATCH,
+        },
+        "id",
+    ),
+)
+def render_custom_groups(
+        panel_data,
+        component_id,
+):
+    panel_id = component_id["index"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        [],
+    )
+
+    children = []
+
+    for i, group in enumerate(
+            groups
+    ):
+
+        children.append(
+            html.Div(
+                [
+                    html.H5(
+                        group["name"]
+                    ),
+                ],
+                style={
+                    "border":
+                        "1px solid #ccc",
+                    "padding": "10px",
+                    "marginTop": "10px",
+                },
+            )
+        )
+
+    return children
 @app.callback(
     Output(
         {
@@ -2468,10 +2724,16 @@ def export_csv(
     panel_id = trigger["index"]
 
     panel = next(
-        p
-        for p in panel_data
-        if p["id"] == panel_id
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
     )
+
+    if panel is None:
+        raise PreventUpdate
 
     chart_type = panel["chart_type"]
 
@@ -2537,6 +2799,7 @@ def export_csv(
         filename,
         index=False,
     )
+
 
 
 
