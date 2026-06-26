@@ -156,43 +156,6 @@ def create_globalselection(
 
             html.Hr(),
 
-            html.Label("Analysis Method"),
-            dcc.Dropdown(
-                id="global-analysis-method",
-                options=[
-                    {"label": x, "value": x}
-                    for x in analysis_methods
-                ],
-                multi=True,
-                placeholder="All",
-            ),
-
-            html.Br(),
-
-            html.Label("Formation"),
-            dcc.Dropdown(
-                id="global-formation",
-                options=[
-                    {"label": x, "value": x}
-                    for x in formations
-                ],
-                multi=True,
-                placeholder="All",
-            ),
-
-            html.Br(),
-
-            html.Label("Borehole"),
-            dcc.Dropdown(
-                id="global-borehole",
-                options=[
-                    {"label": x, "value": x}
-                    for x in boreholes
-                ],
-                multi=True,
-                placeholder="All",
-            ),
-
             html.Br(),
 
             html.Label("Samples"),
@@ -206,12 +169,6 @@ def create_globalselection(
             ),
 
             html.Br(),
-
-            html.Button(
-                "Select All Filtered",
-                id="select-all-filtered",
-                n_clicks=0,
-            ),
 
             html.Button(
                 "Clear Selection",

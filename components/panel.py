@@ -9,10 +9,6 @@ from logic.filters import (
 def create_panel(
         panel,
         display_number,
-        analysis_method_options,
-        formation_options,
-        borehole_options,
-        sample_options,
         group_by_options,
 ):
     graph_style = {

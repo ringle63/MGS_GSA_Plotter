@@ -47,6 +47,7 @@ from logic.filters import (
     GROUP_BY_FIELDS,
     NUMERIC_FIELDS,
     apply_filters,
+    NULL_VALUE,
 )
 
 from dash.exceptions import PreventUpdate
@@ -77,21 +78,6 @@ boreholes = sorted(
     .unique()
 )
 
-analysis_method_options = [
-    {"label": x, "value": x}
-    for x in analysis_methods
-]
-
-formation_options = [
-    {"label": x, "value": x}
-    for x in formations
-]
-
-borehole_options = [
-    {"label": x, "value": x}
-    for x in boreholes
-]
-
 filter_options = {}
 
 for field in FILTER_FIELDS:
@@ -99,12 +85,17 @@ for field in FILTER_FIELDS:
     if field not in gsa_df.columns:
         continue
 
+    series = gsa_df[field]
+
     values = sorted(
-        gsa_df[field]
+        series
         .dropna()
         .astype(str)
         .unique()
     )
+
+    if series.isna().any():
+        values = [NULL_VALUE] + values
 
     filter_options[field] = [
         {
@@ -132,16 +123,6 @@ group_by_options.extend(
         if field in gsa_df.columns
     ]
 )
-
-sample_options = [
-    {"label": x, "value": x}
-    for x in sorted(
-        gsa_df["GSA_ID"]
-        .dropna()
-        .astype(str)
-        .unique()
-    )
-]
 
 mmes_ids = set(
     mmes_df["Sample_Name_Final"].astype(str)
@@ -200,11 +181,6 @@ app.layout = html.Div(
                     "pipette_break": 2,
                     "mastersizer_sand_break": 62.5,
                     "show_usda_triangle": True,
-
-                    "override_methods": [],
-                    "override_formations": [],
-                    "override_boreholes": [],
-                    "override_samples": [],
 
                     "panel_filters": [],
                     "pending_panel_filters": [],
@@ -321,101 +297,6 @@ def update_sample_options(
         }
         for sample in sample_ids
     ]
-
-@app.callback(
-    Output(
-        "panel-store",
-        "data",
-        allow_duplicate=True,
-    ),
-    [
-        Input(
-            {
-                "type": "override-methods",
-                "index": ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type": "override-formations",
-                "index": ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type": "override-boreholes",
-                "index": ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type": "override-samples",
-                "index": ALL,
-            },
-            "value",
-        ),
-    ],
-
-    State(
-        "panel-store",
-        "data",
-    ),
-
-    prevent_initial_call=True,
-)
-def update_panel_overrides(
-        methods,
-        formations,
-        boreholes,
-        samples,
-        panel_data,
-):
-    if (
-            panel_data is None
-            or methods is None
-            or formations is None
-            or boreholes is None
-            or samples is None
-            or len(panel_data) != len(methods)
-            or len(panel_data) != len(formations)
-            or len(panel_data) != len(boreholes)
-            or len(panel_data) != len(samples)
-    ):
-        raise PreventUpdate
-
-    for i, panel in enumerate(panel_data):
-        panel["override_methods"] = (
-            methods[i]
-            if methods[i] is not None
-            else []
-        )
-
-        panel["override_formations"] = (
-            formations[i]
-            if formations[i] is not None
-            else []
-        )
-
-        panel["override_boreholes"] = (
-            boreholes[i]
-            if boreholes[i] is not None
-            else []
-        )
-
-        panel["override_samples"] = (
-            samples[i]
-            if samples[i] is not None
-            else []
-        )
-
-    return panel_data
-
 
 @app.callback(
     Output("selected-count", "children"),
@@ -1030,29 +911,21 @@ def auto_select_filtered(
 @app.callback(
     Output("global-samples", "value"),
     [
-        Input("select-all-filtered", "n_clicks"),
         Input("clear-selection", "n_clicks"),
     ],
     State("global-samples", "options"),
     prevent_initial_call=True,
 )
 def modify_sample_selection(
-        select_all_clicks,
         clear_clicks,
         sample_options,
 ):
     trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
 
-    if trigger == "select-all-filtered":
-        return [
-            option["value"]
-            for option in sample_options
-        ]
-
-    elif trigger == "clear-selection":
+    if trigger == "clear-selection":
         return []
 
-    return []
+    raise PreventUpdate
 
 @app.callback(
     Output(
@@ -1134,10 +1007,6 @@ def render_panels(panel_data):
             create_panel(
                 panel,
                 display_number,
-                analysis_method_options,
-                formation_options,
-                borehole_options,
-                sample_options,
                 group_by_options,
             )
         )
@@ -1199,11 +1068,6 @@ def add_panel(
             "mastersizer_sand_break": 62.5,
             "pipette_break": 2,
             "show_usda_triangle": True,
-
-            "override_methods": [],
-            "override_formations": [],
-            "override_boreholes": [],
-            "override_samples": [],
 
             "panel_filters": [],
             "pending_panel_filters": [],
@@ -2102,6 +1966,7 @@ def update_graphs(
         layout_data,
         panel_data,
 ):
+
     if (
             panel_data is None
             or chart_types is None
@@ -2672,6 +2537,7 @@ def export_csv(
         filename,
         index=False,
     )
+
 
 
 if __name__ == "__main__":

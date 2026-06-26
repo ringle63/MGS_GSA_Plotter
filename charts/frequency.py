@@ -6,6 +6,7 @@ from logic.legendsorting import (
 
 import pandas as pd
 
+from logic.filters import NULL_VALUE
 
 def make_frequency_plot(
         gsa_df,
@@ -86,21 +87,31 @@ def make_frequency_plot(
     )
 
     if group_by != "None":
-        sample_groups = (
-            gsa_df[
-                ["GSA_ID", group_by]
-            ]
-            .drop_duplicates("GSA_ID")
-            .set_index("GSA_ID")[group_by]
-            .to_dict()
 
-        )
+        if group_by == "GSA_ID":
 
-        subset["_group"] = (
-            subset["Sample_Name_Final"]
-            .astype(str)
-            .map(sample_groups)
-        )
+            subset["_group"] = (
+                subset["Sample_Name_Final"]
+                .astype(str)
+            )
+
+        else:
+
+            sample_groups = (
+                gsa_df[
+                    ["GSA_ID", group_by]
+                ]
+                .drop_duplicates("GSA_ID")
+                .set_index("GSA_ID")[group_by]
+                .to_dict()
+            )
+
+            subset["_group"] = (
+                subset["Sample_Name_Final"]
+                .astype(str)
+                .map(sample_groups)
+                .fillna(NULL_VALUE)
+            )
 
     subset = (
         subset.assign(
@@ -146,7 +157,6 @@ def make_frequency_plot(
             grouped = {
                 str(name): df
                 for name, df in subset.groupby("_group")
-                if pd.notnull(name)
             }
 
         for group_name, group_df in grouped.items():

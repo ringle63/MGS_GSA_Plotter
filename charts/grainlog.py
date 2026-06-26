@@ -8,6 +8,8 @@ from logic.legendsorting import (
     gsa_sort_key,
 )
 
+from logic.filters import NULL_VALUE
+
 def make_grain_log(
     gsa_df,
     mmes_df,
@@ -110,9 +112,15 @@ def make_grain_log(
                 group_by
                 and group_by != "None"
         ):
-            current_group = str(
-                row[group_by]
-            )
+            value = row[group_by]
+
+            if (
+                    value is None
+                    or str(value) == "nan"
+            ):
+                current_group = NULL_VALUE
+            else:
+                current_group = str(value)
 
         mmes_row = mmes_lookup.get(
             str(row["GSA_ID"])

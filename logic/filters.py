@@ -1,5 +1,7 @@
 import pandas as pd
 
+NULL_VALUE = "<null>"
+
 FILTER_FIELDS = {
     "analysis_method": "Analysis Method",
     "formation": "Formation",
@@ -99,16 +101,45 @@ def apply_filters(
 
         else:
 
-            series = (
-                df[field]
-                .astype(str)
-            )
+            series = df[field]
 
         if operator == "IN":
-            mask = series.isin(value)
+
+            contains_null = (
+                NULL_VALUE in value
+                if isinstance(value, list)
+                else False
+            )
+
+            values = [
+                v
+                for v in value
+                if v != NULL_VALUE
+            ]
+
+            mask = series.astype(str).isin(values)
+
+            if contains_null:
+                mask |= series.isna()
 
         elif operator == "NOT IN":
-            mask = ~series.isin(value)
+
+            contains_null = (
+                NULL_VALUE in value
+                if isinstance(value, list)
+                else False
+            )
+
+            values = [
+                v
+                for v in value
+                if v != NULL_VALUE
+            ]
+
+            mask = ~series.astype(str).isin(values)
+
+            if contains_null:
+                mask &= ~series.isna()
 
         elif operator == "CONTAINS":
 
@@ -116,6 +147,7 @@ def apply_filters(
 
             mask = (
                 series
+                .astype(str)
                 .str.lower()
                 .str.contains(
                     search,
@@ -131,7 +163,7 @@ def apply_filters(
                 )
             else:
                 mask = (
-                        series
+                        series.astype(str)
                         == str(value)
                 )
 
@@ -144,7 +176,7 @@ def apply_filters(
                 )
             else:
                 mask = (
-                        series
+                        series.astype(str)
                         != str(value)
                 )
 

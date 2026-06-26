@@ -12,6 +12,8 @@ import pandas as pd
 
 import numpy as np
 
+from logic.filters import NULL_VALUE
+
 def make_ternary_plot(
         gsa_df,
         mmes_df,
@@ -71,14 +73,23 @@ def make_ternary_plot(
 
         sample = row["GSA_ID"]
 
-        group = (
-            row[panel["group_by"]]
+        if (
+                panel["group_by"] != "None"
+                and panel["group_by"] in row
+        ):
+
+            value = row[panel["group_by"]]
+
             if (
-                    panel["group_by"] != "None"
-                    and panel["group_by"] in row
-            )
-            else "All Samples"
-        )
+                    value is None
+                    or str(value) == "nan"
+            ):
+                group = NULL_VALUE
+            else:
+                group = value
+
+        else:
+            group = "All Samples"
 
         points.append(
             {
