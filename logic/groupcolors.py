@@ -1,24 +1,73 @@
 import plotly.colors as pc
 
 
-BASE_COLORS = pc.qualitative.Plotly
+BASE_COLORS = (
+    pc.qualitative.Alphabet
+    + pc.qualitative.Plotly
+)
 
 
-def get_group_color(group_name):
-    colors = BASE_COLORS
-    index = abs(hash(str(group_name))) % len(colors)
-    return colors[index]
+def build_group_colors(groups):
+    """
+    Build a color dictionary for the groups
+    currently present in the figure.
+
+    Parameters
+    ----------
+    groups : iterable
+
+    Returns
+    -------
+    dict
+    """
+
+    groups = list(groups)
+
+    return {
+        group: BASE_COLORS[
+            i % len(BASE_COLORS)
+        ]
+        for i, group in enumerate(groups)
+    }
 
 
-def lighten_color(hex_color, factor=0.55):
-    hex_color = hex_color.lstrip("#")
+def darken_color(color, factor=0.25):
+    """
+    Darken a color.
 
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
+    Parameters
+    ----------
+    color : str
+        '#RRGGBB' or 'rgb(r,g,b)'
 
-    r = int(r + (255 - r) * factor)
-    g = int(g + (255 - g) * factor)
-    b = int(b + (255 - b) * factor)
+    factor : float
+        0.0 = unchanged
+        1.0 = black
+    """
+
+    if color.startswith("rgb"):
+
+        values = (
+            color.replace("rgb(", "")
+            .replace(")", "")
+            .split(",")
+        )
+
+        r, g, b = [
+            int(v)
+            for v in values
+        ]
+
+    else:
+
+        color = color.lstrip("#")
+
+        r = int(color[0:2], 16)
+        g = int(color[2:4], 16)
+        b = int(color[4:6], 16)
+
+    r = int(r * (1 - factor))
+    g = int(g * (1 - factor))
+    b = int(b * (1 - factor))
 
     return f"rgb({r},{g},{b})"

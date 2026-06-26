@@ -14,6 +14,11 @@ import numpy as np
 
 from logic.filters import NULL_VALUE
 
+from logic.groupcolors import (
+    build_group_colors,
+    darken_color,
+)
+
 def make_ternary_plot(
         gsa_df,
         mmes_df,
@@ -21,6 +26,8 @@ def make_ternary_plot(
         panel,
 ):
     fig = go.Figure()
+
+    group_colors = {}
 
     subset = (
         gsa_df[
@@ -103,51 +110,6 @@ def make_ternary_plot(
             }
         )
 
-        mode = []
-
-        if panel.get(
-                "show_samples",
-                True,
-        ):
-            mode.append("markers")
-
-        if panel.get(
-                "show_labels",
-                False,
-        ):
-            mode.append("text")
-
-        mode = "+".join(mode)
-
-        if mode == "":
-            continue
-
-        fig.add_trace(
-            go.Scatterternary(
-                a=[fractions["clay"]],
-                b=[fractions["sand"]],
-                c=[fractions["silt"]],
-
-                mode=mode,
-
-                text=[sample],
-                textposition="top center",
-
-                name=sample,
-
-                hovertemplate=
-                (
-                    f"{sample}<br>"
-                    f"Method: {fractions['method']}<br>"
-                    f"Break: {fractions['break']}<br>"
-                    f"Clay: {fractions['clay']:.2f}%<br>"
-                    f"Silt: {fractions['silt']:.2f}%<br>"
-                    f"Sand: {fractions['sand']:.2f}%"
-                    "<extra></extra>"
-                ),
-            )
-        )
-
     points_df = pd.DataFrame(points)
 
     group_by = panel.get(
@@ -162,6 +124,88 @@ def make_ternary_plot(
             or group_by == "None"
     ):
         plot_df["group"] = "All Samples"
+
+    groups = sorted(
+        plot_df["group"]
+        .fillna(NULL_VALUE)
+        .unique()
+    )
+
+    group_colors = (
+        build_group_colors(
+            groups
+        )
+    )
+
+    mode = []
+
+    if panel.get(
+            "show_samples",
+            True,
+    ):
+        mode.append("markers")
+
+    if panel.get(
+            "show_labels",
+            False,
+    ):
+        mode.append("text")
+
+    mode = "+".join(mode)
+
+    if mode != "":
+
+        for _, row in plot_df.iterrows():
+            fig.add_trace(
+                go.Scatterternary(
+                    a=[row["clay"]],
+                    b=[row["sand"]],
+                    c=[row["silt"]],
+
+                    mode=mode,
+
+                    marker=dict(
+                        size=8,
+
+                        color=(
+                            group_colors[row["group"]]
+                            if group_by != "None"
+                            else None
+                        ),
+
+                        line=dict(
+                            width=1,
+                            color=(
+                                darken_color(
+                                    group_colors[row["group"]],
+                                    factor=0.25,
+                                )
+                                if group_by != "None"
+                                else None
+                            ),
+                        ),
+                    ),
+
+                    text=[row["sample"]],
+                    textposition="top center",
+
+                    name=row["sample"],
+
+                    hovertemplate=
+                    (
+                        f"{row['sample']}<br>"
+                        f"Clay: {row['clay']:.2f}%<br>"
+                        f"Sand: {row['sand']:.2f}%<br>"
+                        f"Silt: {row['silt']:.2f}%"
+                        "<extra></extra>"
+                    ),
+
+                    showlegend=(
+                            panel["show_legend"]
+                            and group_by == "None"
+                    ),
+                )
+            )
 
     fig.update_layout(
         title="Ternary Plot",
@@ -263,13 +307,18 @@ def make_ternary_plot(
 
                     marker=dict(
                         size=10,
-                        color="black",
+                        color=darken_color(
+                            group_colors[
+                                row["group"]
+                            ],
+                            factor=0.35,
+                        ),
                         symbol=symbols[
                             i % len(symbols)
                             ],
                         line=dict(
-                            color="white",
-                            width=1,
+                            color="black",
+                            width=2,
                         ),
                     ),
 
@@ -418,9 +467,13 @@ def make_ternary_plot(
                     mode="lines",
 
                     line=dict(
-                        color="black",
+                        color=darken_color(
+                            group_colors[
+                                group_name
+                            ],
+                            factor=0.25,
+                        ),
                         width=2,
-                        dash="dash",
                     ),
 
                     name=(

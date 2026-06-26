@@ -8,6 +8,11 @@ import pandas as pd
 
 from logic.filters import NULL_VALUE
 
+from logic.groupcolors import (
+    build_group_colors,
+    darken_color,
+)
+
 def make_frequency_plot(
         gsa_df,
         mmes_df,
@@ -43,6 +48,9 @@ def make_frequency_plot(
     show_break_62_5 = panel["show_break_62_5"]
 
     fig = go.Figure()
+
+    sample_groups = {}
+    group_colors = {}
 
     if not selected_samples:
         fig.update_layout(
@@ -95,6 +103,18 @@ def make_frequency_plot(
                 .astype(str)
             )
 
+            groups = sorted(
+                subset["_group"]
+                .fillna(NULL_VALUE)
+                .unique()
+            )
+
+            group_colors = (
+                build_group_colors(
+                    groups
+                )
+            )
+
         else:
 
             sample_groups = (
@@ -112,6 +132,17 @@ def make_frequency_plot(
                 .map(sample_groups)
                 .fillna(NULL_VALUE)
             )
+            groups = sorted(
+                subset["_group"]
+                .fillna(NULL_VALUE)
+                .unique()
+            )
+
+            group_colors = (
+                build_group_colors(
+                    groups
+                )
+            )
 
     subset = (
         subset.assign(
@@ -123,14 +154,43 @@ def make_frequency_plot(
         .drop(columns="_sort_key")
     )
 
+
+
     if show_samples:
 
         for _, row in subset.iterrows():
-            sample = str(row["Sample_Name_Final"])
 
-            y_vals = row[FR_cols].tolist()
+            sample = str(
+                row["Sample_Name_Final"]
+            )
 
-            mode = "lines+text" if show_labels else "lines"
+            y_vals = row[
+                FR_cols
+            ].tolist()
+
+            mode = (
+                "lines+text"
+                if show_labels
+                else "lines"
+            )
+
+            line_color = None
+
+            if group_by != "None":
+
+                if group_by == "GSA_ID":
+
+                    group_name = sample
+
+                else:
+
+                    group_name = row["_group"]
+
+                line_color = (
+                    group_colors[
+                        group_name
+                    ]
+                )
 
             fig.add_trace(
                 go.Scatter(
@@ -139,7 +199,17 @@ def make_frequency_plot(
                     mode=mode,
                     name=sample,
                     showlegend=show_legend,
-                    text=[None] * (len(y_vals) - 1) + [sample],
+
+                    line=dict(
+                        color=line_color,
+                    ),
+
+                    text=[
+                             None
+                         ] * (
+                                 len(y_vals) - 1
+                         ) + [sample],
+
                     textposition="middle right",
                 )
             )
@@ -238,7 +308,12 @@ def make_frequency_plot(
                             mode="lines",
                             name=f"{group_name} {sign}",
                             line=dict(
-                                color="black",
+                                color=darken_color(
+                                    group_colors[
+                                        group_name
+                                    ],
+                                    factor=0.35,
+                                ),
                                 width=2,
                                 dash="dot",
                             ),
@@ -266,7 +341,12 @@ def make_frequency_plot(
                             mode="lines",
                             name=f"{group_name} {sign}",
                             line=dict(
-                                color="black",
+                                color=darken_color(
+                                    group_colors[
+                                        group_name
+                                    ],
+                                    factor=0.35,
+                                ),
                                 width=2,
                                 dash="dashdot",
                             ),
@@ -294,7 +374,12 @@ def make_frequency_plot(
                             mode="lines",
                             name=f"{group_name} {sign}",
                             line=dict(
-                                color="black",
+                                color=darken_color(
+                                    group_colors[
+                                        group_name
+                                    ],
+                                    factor=0.35,
+                                ),
                                 width=1,
                                 dash="longdash",
                             ),
