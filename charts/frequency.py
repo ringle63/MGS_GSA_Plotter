@@ -13,6 +13,7 @@ from logic.groupcolors import (
     darken_color,
 )
 
+
 def make_frequency_plot(
         gsa_df,
         mmes_df,
@@ -27,6 +28,22 @@ def make_frequency_plot(
     show_std2 = panel["show_std2"]
     show_std3 = panel["show_std3"]
     group_by = panel["group_by"]
+    custom_groups = panel.get(
+        "grouped_samples"
+    )
+
+    using_custom_groups = (
+            custom_groups is not None
+    )
+
+    sample_to_group = {}
+    sample_to_groups = {}
+
+    if using_custom_groups:
+        (
+            sample_to_groups,
+            sample_to_group,
+        ) = custom_groups
     x_axis = panel["x_axis"]
     show_break_2 = panel.get(
         "show_break_2",
@@ -94,7 +111,36 @@ def make_frequency_plot(
             .copy()
     )
 
-    if group_by != "None":
+    if using_custom_groups:
+
+        subset["_group"] = (
+            subset["Sample_Name_Final"]
+            .astype(str)
+            .map(sample_to_group)
+            .fillna(NULL_VALUE)
+        )
+
+        groups = sorted(
+            {
+                group
+                for groups_list
+                in sample_to_groups.values()
+                for group in groups_list
+            }
+        )
+
+        if (
+                subset["_group"]
+                        .eq(NULL_VALUE)
+                        .any()
+        ):
+            groups.append(NULL_VALUE)
+
+        group_colors = (
+            build_group_colors(groups)
+        )
+
+    elif group_by != "None":
 
         if group_by == "GSA_ID":
 
@@ -154,8 +200,6 @@ def make_frequency_plot(
         .drop(columns="_sort_key")
     )
 
-
-
     if show_samples:
 
         for _, row in subset.iterrows():
@@ -176,7 +220,7 @@ def make_frequency_plot(
 
             line_color = None
 
-            if group_by != "None":
+            if using_custom_groups or group_by != "None":
 
                 if group_by == "GSA_ID":
 
@@ -187,9 +231,10 @@ def make_frequency_plot(
                     group_name = row["_group"]
 
                 line_color = (
-                    group_colors[
-                        group_name
-                    ]
+                    group_colors.get(
+                        group_name,
+                        "#808080"
+                    )
                 )
 
             fig.add_trace(
@@ -216,7 +261,10 @@ def make_frequency_plot(
 
     if show_mean and len(subset):
 
-        if group_by == "None":
+        if (
+                group_by == "None"
+                and not using_custom_groups
+        ):
 
             grouped = {
                 "Mean": subset
@@ -225,6 +273,26 @@ def make_frequency_plot(
             group_colors = {
                 "Mean": "#1f77b4"
             }
+
+        elif using_custom_groups:
+
+            grouped = {}
+
+            for group_name in group_colors:
+                samples = [
+                    sample
+                    for sample, groups
+                    in sample_to_groups.items()
+                    if group_name in groups
+                ]
+
+                group_df = subset[
+                    subset["Sample_Name_Final"]
+                    .astype(str)
+                    .isin(samples)
+                ]
+
+                grouped[group_name] = group_df
 
         else:
 
@@ -286,7 +354,10 @@ def make_frequency_plot(
                     line=dict(
                         width=5,
                         dash="dash",
-                        color="black",
+                        color=darken_color(
+                            group_colors[group_name],
+                            factor=0.35,
+                        ),
                     ),
                     hovertemplate=(
                         f"{group_name} Mean"

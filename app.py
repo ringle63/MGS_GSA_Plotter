@@ -308,6 +308,7 @@ def update_sample_options(
         for sample in sample_ids
     ]
 
+
 @app.callback(
     Output("selected-count", "children"),
     Input("global-samples", "value"),
@@ -316,6 +317,7 @@ def update_selected_count(selected_samples):
     count = len(selected_samples) if selected_samples else 0
 
     return f"Selected Samples: {count}"
+
 
 @app.callback(
     Output(
@@ -374,6 +376,7 @@ def update_panel_selected_counts(
 
     return results
 
+
 @app.callback(
     Output(
         "global-filter-field",
@@ -385,7 +388,6 @@ def update_panel_selected_counts(
     ),
 )
 def load_filter_fields(_):
-
     fields = {}
 
     fields.update(FILTER_FIELDS)
@@ -399,6 +401,7 @@ def load_filter_fields(_):
         for field, label
         in fields.items()
     ]
+
 
 @app.callback(
     Output(
@@ -414,7 +417,6 @@ def update_operator_options(
         field,
 ):
     if field in NUMERIC_FIELDS:
-
         return [
             {"label": "=", "value": "="},
             {"label": "!=", "value": "!="},
@@ -430,6 +432,7 @@ def update_operator_options(
         {"label": "NOT IN", "value": "NOT IN"},
         {"label": "CONTAINS", "value": "CONTAINS"},
     ]
+
 
 @app.callback(
     Output(
@@ -461,6 +464,7 @@ def update_filter_values(
         return []
 
     return filter_options[field]
+
 
 @app.callback(
     Output(
@@ -607,6 +611,7 @@ def update_global_filters(
 
     return new_filters
 
+
 @app.callback(
     Output(
         "global-filters",
@@ -628,6 +633,7 @@ def clear_global_filters(
         n_clicks,
 ):
     return [], []
+
 
 @app.callback(
     Output(
@@ -775,6 +781,7 @@ def show_filter_list(
 
     return rows
 
+
 @app.callback(
     Output(
         "pending-global-filters",
@@ -822,6 +829,7 @@ def remove_global_filter(
 
     return new_filters
 
+
 @app.callback(
     Output(
         "pending-global-filters",
@@ -866,6 +874,7 @@ def update_filter_logic(
 
     return new_filters
 
+
 @app.callback(
     Output(
         "global-filters",
@@ -887,6 +896,7 @@ def apply_global_filters(
         filters,
 ):
     return filters or []
+
 
 @app.callback(
     Output(
@@ -914,9 +924,10 @@ def auto_select_filtered(
     return [
         option["value"]
         for option in (
-            options or []
+                options or []
         )
     ]
+
 
 @app.callback(
     Output("global-samples", "value"),
@@ -936,6 +947,7 @@ def modify_sample_selection(
         return []
 
     raise PreventUpdate
+
 
 @app.callback(
     Output(
@@ -970,7 +982,6 @@ def toggle_filter_inputs(
     if field in NUMERIC_FIELDS:
 
         if operator == "BETWEEN":
-
             return (
                 {"display": "none"},
                 {"display": "none"},
@@ -989,7 +1000,6 @@ def toggle_filter_inputs(
         )
 
     if operator == "CONTAINS":
-
         return (
             {"display": "none"},
             {"width": "100%"},
@@ -1217,6 +1227,7 @@ def update_use_global(
 
     return panel_data
 
+
 @app.callback(
     Output(
         {
@@ -1258,6 +1269,7 @@ def show_hide_panel_query_builder(
 
     return styles
 
+
 @app.callback(
     Output(
         {
@@ -1278,7 +1290,6 @@ def update_panel_operator_options(
         field,
 ):
     if field in NUMERIC_FIELDS:
-
         return [
             {"label": "=", "value": "="},
             {"label": "!=", "value": "!="},
@@ -1294,6 +1305,7 @@ def update_panel_operator_options(
         {"label": "NOT IN", "value": "NOT IN"},
         {"label": "CONTAINS", "value": "CONTAINS"},
     ]
+
 
 @app.callback(
     Output(
@@ -1332,6 +1344,7 @@ def update_panel_filter_values(
         return []
 
     return filter_options[field]
+
 
 @app.callback(
     Output(
@@ -1384,7 +1397,6 @@ def toggle_panel_filter_inputs(
     if field in NUMERIC_FIELDS:
 
         if operator == "BETWEEN":
-
             return (
                 {"display": "none"},
                 {"display": "none"},
@@ -1403,7 +1415,6 @@ def toggle_panel_filter_inputs(
         )
 
     if operator == "CONTAINS":
-
         return (
             {"display": "none"},
             {"width": "100%"},
@@ -1417,6 +1428,178 @@ def toggle_panel_filter_inputs(
         {"display": "none"},
         {"display": "none"},
     )
+
+
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-filter-operator",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "options",
+    ),
+    Input(
+        {
+            "type": "custom-group-filter-field",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+)
+def update_custom_group_operator_options(
+        field,
+):
+    if field in NUMERIC_FIELDS:
+        return [
+            {"label": "=", "value": "="},
+            {"label": "!=", "value": "!="},
+            {"label": "<", "value": "<"},
+            {"label": "<=", "value": "<="},
+            {"label": ">", "value": ">"},
+            {"label": ">=", "value": ">="},
+            {"label": "BETWEEN", "value": "BETWEEN"},
+        ]
+
+    return [
+        {"label": "IN", "value": "IN"},
+        {"label": "NOT IN", "value": "NOT IN"},
+        {"label": "CONTAINS", "value": "CONTAINS"},
+    ]
+
+
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-filter-dropdown",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "options",
+    ),
+    Input(
+        {
+            "type": "custom-group-filter-field",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-operator",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+)
+def update_custom_group_filter_values(
+        field,
+        operator,
+):
+    if operator == "CONTAINS":
+        return []
+
+    if (
+            field is None
+            or field not in filter_options
+    ):
+        return []
+
+    return filter_options[field]
+
+
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-filter-dropdown",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "custom-group-filter-text",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "custom-group-filter-number",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "style",
+    ),
+    Output(
+        {
+            "type": "custom-group-filter-between",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "style",
+    ),
+    Input(
+        {
+            "type": "custom-group-filter-field",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    Input(
+        {
+            "type": "custom-group-filter-operator",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+)
+def toggle_custom_group_filter_inputs(
+        field,
+        operator,
+):
+    if field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+            return (
+                {"display": "none"},
+                {"display": "none"},
+                {"display": "none"},
+                {
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                },
+            )
+
+        return (
+            {"display": "none"},
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+        )
+
+    if operator == "CONTAINS":
+        return (
+            {"display": "none"},
+            {"width": "100%"},
+            {"display": "none"},
+            {"display": "none"},
+        )
+
+    return (
+        {"width": "100%"},
+        {"display": "none"},
+        {"display": "none"},
+        {"display": "none"},
+    )
+
 
 @app.callback(
     Output(
@@ -1583,6 +1766,7 @@ def add_panel_filter(
 
     return panel_data
 
+
 @app.callback(
     Output(
         {
@@ -1724,7 +1908,7 @@ def show_panel_filter_list(
                             ),
 
                             html.Span(
-                                f"{i+1}. "
+                                f"{i + 1}. "
                                 f"{field_name} "
                                 f"{clause['operator']} "
                                 f"{values}"
@@ -1948,6 +2132,7 @@ def apply_panel_filter_callback(
 
     return panel_data
 
+
 @app.callback(
     Output(
         "panel-store",
@@ -1995,6 +2180,7 @@ def clear_panel_filters(
 
     return panel_data
 
+
 @app.callback(
     Output(
         {
@@ -2022,7 +2208,6 @@ def update_graphs(
         layout_data,
         panel_data,
 ):
-
     if (
             panel_data is None
             or chart_types is None
@@ -2058,6 +2243,50 @@ def update_graphs(
             global_samples,
             gsa_df,
         )
+
+        panel["grouped_samples"] = None
+
+        if (
+                panel.get(
+                    "use_custom_groups",
+                    False,
+                )
+                and has_custom_groups(
+            panel
+        )
+        ):
+            print(panel["custom_groups"])
+
+            subset = gsa_df[
+                gsa_df["GSA_ID"]
+                .astype(str)
+                .isin(panel_samples)
+            ]
+
+            panel["grouped_samples"] = (
+                build_custom_groups(
+                    panel.get(
+                        "custom_groups",
+                        [],
+                    ),
+                    subset,
+                )
+            )
+
+            print("\nCUSTOM GROUP DEBUG")
+            print("panel id:", panel["id"])
+
+            sample_to_groups, sample_to_group = (
+                panel["grouped_samples"]
+            )
+
+            print("sample_to_group:")
+            for k, v in list(sample_to_group.items())[:20]:
+                print(k, "->", v)
+
+            print("\nsample_to_groups:")
+            for k, v in list(sample_to_groups.items())[:20]:
+                print(k, "->", v)
 
         if chart_type == "PSD Undersize":
 
@@ -2192,6 +2421,8 @@ def update_graphs(
                 )
 
             )
+
+
     return contents
 
 
@@ -2500,6 +2731,7 @@ def toggle_panel_sections(
 
     return panel_data
 
+
 @app.callback(
     Output(
         {
@@ -2532,6 +2764,56 @@ def toggle_custom_groups(
         "marginTop": "10px",
     }
 
+
+@app.callback(
+    Output(
+        {
+            "type": "group-by-container",
+            "index": MATCH,
+        },
+        "style",
+    ),
+    Input(
+        {
+            "type": "use-custom-groups",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "chart-type",
+            "index": MATCH,
+        },
+        "value",
+    ),
+)
+def toggle_group_by_visibility(
+        values,
+        chart_type,
+):
+    supports_grouping = chart_type in [
+        "PSD Undersize",
+        "PSD Frequency",
+        "Grain Size Log",
+        "Ternary",
+    ]
+
+    if not supports_grouping:
+        return {
+            "display": "none",
+        }
+
+    if "custom" in (values or []):
+        return {
+            "display": "none",
+        }
+
+    return {
+        "display": "block",
+    }
+
+
 @app.callback(
     Output(
         "panel-store",
@@ -2559,14 +2841,18 @@ def update_custom_group_toggle(
             panel_data,
             values,
     ):
-        panel[
-            "use_custom_groups"
-        ] = (
-            "custom"
-            in (value or [])
+        use_custom = (
+                "custom"
+                in (value or [])
         )
 
+        panel["use_custom_groups"] = use_custom
+
+        if use_custom:
+            panel["group_by"] = "None"
+
     return panel_data
+
 
 @app.callback(
     Output(
@@ -2620,14 +2906,17 @@ def add_custom_group(
         groups.append(
             {
                 "name":
-                    f"Group {len(groups)+1}",
+                    f"Group {len(groups) + 1}",
+
                 "filters": [],
+                "pending_filters": [],
             }
         )
-
+        print(callback_context.triggered_id)
         break
 
     return panel_data
+
 
 @app.callback(
     Output(
@@ -2677,24 +2966,1017 @@ def render_custom_groups(
     for i, group in enumerate(
             groups
     ):
-
         children.append(
             html.Div(
                 [
-                    html.H5(
-                        group["name"]
+
+                    dcc.Input(
+                        id={
+                            "type":
+                                "custom-group-name",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        value=group["name"],
+                        style={
+                            "width": "100%",
+                            "fontWeight": "bold",
+                            "marginBottom": "10px",
+                        },
+                    ),
+
+                    html.Label("Field"),
+
+                    dcc.Dropdown(
+                        id={
+                            "type":
+                                "custom-group-filter-field",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        options=[
+                            {
+                                "label": label,
+                                "value": field,
+                            }
+                            for field, label
+                            in (
+                                    GROUP_BY_FIELDS
+                                    |
+                                    NUMERIC_FIELDS
+                            ).items()
+                        ],
+                    ),
+
+                    html.Br(),
+
+                    html.Label("Operator"),
+
+                    dcc.Dropdown(
+                        id={
+                            "type":
+                                "custom-group-filter-operator",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        value="IN",
+                        clearable=False,
+                    ),
+
+                    html.Br(),
+
+                    html.Label("Value"),
+
+                    dcc.Dropdown(
+                        id={
+                            "type":
+                                "custom-group-filter-dropdown",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        multi=True,
+                    ),
+
+                    dcc.Input(
+                        id={
+                            "type":
+                                "custom-group-filter-text",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        type="text",
+                        placeholder="Enter text...",
+                        style={
+                            "display": "none",
+                            "width": "100%",
+                        },
+                    ),
+
+                    dcc.Input(
+                        id={
+                            "type":
+                                "custom-group-filter-number",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        type="number",
+                        placeholder="Value",
+                        style={
+                            "display": "none",
+                            "width": "100%",
+                        },
+                    ),
+
+                    html.Div(
+                        [
+                            dcc.Input(
+                                id={
+                                    "type":
+                                        "custom-group-filter-min",
+                                    "panel":
+                                        panel_id,
+                                    "group":
+                                        i,
+                                },
+                                type="number",
+                                placeholder="Minimum",
+                                style={
+                                    "width": "48%",
+                                },
+                            ),
+
+                            dcc.Input(
+                                id={
+                                    "type":
+                                        "custom-group-filter-max",
+                                    "panel":
+                                        panel_id,
+                                    "group":
+                                        i,
+                                },
+                                type="number",
+                                placeholder="Maximum",
+                                style={
+                                    "width": "48%",
+                                },
+                            ),
+                        ],
+                        id={
+                            "type":
+                                "custom-group-filter-between",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        style={
+                            "display": "none",
+                            "justifyContent":
+                                "space-between",
+                        },
+                    ),
+
+                    html.Br(),
+
+                    html.Button(
+                        "Add Clause",
+                        id={
+                            "type":
+                                "add-custom-group-filter",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                    ),
+
+                    html.Br(),
+                    html.Br(),
+
+                    html.Button(
+                        "Apply Group",
+                        id={
+                            "type":
+                                "apply-custom-group-filter",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                    ),
+
+                    html.Button(
+                        "Clear Group",
+                        id={
+                            "type":
+                                "clear-custom-group-filter",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        style={
+                            "marginLeft": "10px",
+                        },
+                    ),
+
+                    html.Button(
+                        "Remove Group",
+                        id={
+                            "type":
+                                "remove-custom-group",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        style={
+                            "marginLeft": "10px",
+                            "color": "red",
+                        },
+                    ),
+
+                    html.Div(
+                        id={
+                            "type":
+                                "custom-group-filter-list",
+                            "panel":
+                                panel_id,
+                            "group":
+                                i,
+                        },
+                        style={
+                            "marginTop": "10px",
+                        },
                     ),
                 ],
                 style={
                     "border":
                         "1px solid #ccc",
-                    "padding": "10px",
-                    "marginTop": "10px",
+                    "padding":
+                        "10px",
+                    "marginTop":
+                        "10px",
                 },
             )
         )
 
     return children
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "add-custom-group-filter",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-field",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-operator",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-dropdown",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-text",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-number",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-min",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-max",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    prevent_initial_call=True,
+)
+def add_custom_group_filter(
+        n_clicks,
+        panel_data,
+        field,
+        operator,
+        dropdown_value,
+        text_value,
+        number_value,
+        minimum_value,
+        maximum_value,
+):
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+    group_index = trigger["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    group = groups[group_index]
+
+    filters = group.get(
+        "pending_filters",
+        []
+    )
+
+    if operator == "CONTAINS":
+
+        value = text_value
+
+    elif field in NUMERIC_FIELDS:
+
+        if operator == "BETWEEN":
+
+            value = [
+                minimum_value,
+                maximum_value,
+            ]
+
+        else:
+
+            value = number_value
+
+    else:
+
+        value = dropdown_value
+
+    if field is None:
+        raise PreventUpdate
+
+    if operator == "BETWEEN":
+
+        if (
+                value[0] is None
+                or value[1] is None
+        ):
+            raise PreventUpdate
+
+    elif value in [
+        None,
+        [],
+        "",
+    ]:
+        raise PreventUpdate
+
+    new_clause = {
+        "field": field,
+        "operator": operator,
+        "value": value,
+        "logic": (
+            "AND"
+            if filters
+            else None
+        ),
+    }
+
+    filters.append(
+        new_clause
+    )
+
+    group["pending_filters"] = filters
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        {
+            "type": "custom-group-filter-list",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "children",
+    ),
+    Input(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-list",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "id",
+    ),
+)
+def show_custom_group_filter_list(
+        panel_data,
+        component_id,
+):
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    filters = groups[group_index].get(
+        "pending_filters",
+        []
+    )
+
+    if not filters:
+        return []
+
+    rows = []
+
+    for i, clause in enumerate(filters):
+
+        if clause["operator"] == "BETWEEN":
+
+            values = (
+                f"{clause['value'][0]}"
+                f" and "
+                f"{clause['value'][1]}"
+            )
+
+        elif isinstance(
+                clause["value"],
+                list,
+        ):
+
+            values = ", ".join(
+                map(
+                    str,
+                    clause["value"]
+                )
+            )
+
+        else:
+
+            values = str(
+                clause["value"]
+            )
+
+        field_name = (
+                FILTER_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
+                or
+                NUMERIC_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
+        )
+
+        rows.append(
+            html.Div(
+                [
+                    html.Div(
+                        [
+
+                            html.Div(
+                                dcc.Dropdown(
+                                    id={
+                                        "type":
+                                            "custom-group-filter-logic",
+                                        "panel":
+                                            panel_id,
+                                        "group":
+                                            group_index,
+                                        "index":
+                                            i,
+                                    },
+                                    options=[
+                                        {
+                                            "label":
+                                                "AND",
+                                            "value":
+                                                "AND",
+                                        },
+                                        {
+                                            "label":
+                                                "OR",
+                                            "value":
+                                                "OR",
+                                        },
+                                    ],
+                                    value=clause.get(
+                                        "logic",
+                                        "AND",
+                                    ),
+                                    clearable=False,
+                                    style={
+                                        "width":
+                                            "90px",
+                                    },
+                                ),
+                                style={
+                                    "display":
+                                        "none"
+                                        if i == 0
+                                        else "block",
+                                },
+                            ),
+
+                            html.Span(
+                                f"{i + 1}. "
+                                f"{field_name} "
+                                f"{clause['operator']} "
+                                f"{values}"
+                            ),
+                        ],
+                        style={
+                            "display":
+                                "flex",
+                            "flexDirection":
+                                "column",
+                            "flex":
+                                1,
+                        },
+                    ),
+
+                    html.Button(
+                        "✕",
+                        id={
+                            "type":
+                                "remove-custom-group-filter",
+                            "panel":
+                                panel_id,
+                            "group":
+                                group_index,
+                            "index":
+                                i,
+                        },
+                        n_clicks=0,
+                        style={
+                            "marginLeft":
+                                "10px",
+                            "color":
+                                "red",
+                        },
+                    ),
+                ],
+                style={
+                    "display":
+                        "flex",
+                    "alignItems":
+                        "center",
+                    "marginBottom":
+                        "5px",
+                },
+            )
+        )
+
+    return rows
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "remove-custom-group-filter",
+            "panel": ALL,
+            "group": ALL,
+            "index": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def remove_custom_group_filter(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+    group_index = trigger["group"]
+    clause_index = trigger["index"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    filters = groups[group_index].get(
+        "pending_filters",
+        []
+    )
+
+    if clause_index >= len(filters):
+        raise PreventUpdate
+
+    new_filters = filters.copy()
+
+    new_filters.pop(
+        clause_index
+    )
+
+    groups[group_index][
+        "pending_filters"
+    ] = new_filters
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "custom-group-filter-logic",
+            "panel": ALL,
+            "group": ALL,
+            "index": ALL,
+        },
+        "value",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def update_custom_group_filter_logic(
+        logic_values,
+        panel_data,
+):
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+    group_index = trigger["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    filters = groups[group_index].get(
+        "pending_filters",
+        []
+    )
+
+    if not filters:
+        raise PreventUpdate
+
+    new_filters = copy.deepcopy(
+        filters
+    )
+
+    for i, value in enumerate(
+            logic_values
+    ):
+        if i == 0:
+            continue
+
+        if i < len(new_filters):
+            new_filters[i]["logic"] = value
+
+    groups[group_index][
+        "pending_filters"
+    ] = new_filters
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "apply-custom-group-filter",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "custom-group-name",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "custom-group-name",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "id",
+    ),
+    prevent_initial_call=True,
+)
+def apply_custom_group_filters(
+        n_clicks,
+        panel_data,
+        group_name,
+        component_id,
+):
+    if not n_clicks:
+        raise PreventUpdate
+
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    group = groups[group_index]
+
+    # Save the group name
+    if (
+            group_name is not None
+            and str(group_name).strip()
+    ):
+        group["name"] = (
+            str(group_name)
+            .strip()
+        )
+
+    # Save the filters
+    group["filters"] = copy.deepcopy(
+        group.get(
+            "pending_filters",
+            []
+        )
+    )
+    print(group["pending_filters"])
+    print(group["filters"])
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "clear-custom-group-filter",
+            "panel": ALL,
+            "group": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def clear_custom_group_filters(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+    group_index = trigger["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if group_index >= len(groups):
+        raise PreventUpdate
+
+    groups[group_index][
+        "pending_filters"
+    ] = []
+
+    groups[group_index][
+        "filters"
+    ] = []
+
+    return panel_data
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "remove-custom-group",
+            "panel": ALL,
+            "group": ALL,
+        },
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def remove_custom_group(
+        clicks,
+        panel_data,
+):
+    if not any(clicks):
+        raise PreventUpdate
+
+    trigger = callback_context.triggered_id
+
+    if trigger is None:
+        raise PreventUpdate
+
+    panel_id = trigger["panel"]
+    group_index = trigger["group"]
+
+    panel = next(
+        (
+            p
+            for p in panel_data
+            if p["id"] == panel_id
+        ),
+        None,
+    )
+
+    if panel is None:
+        raise PreventUpdate
+
+    groups = panel.get(
+        "custom_groups",
+        []
+    )
+
+    if (
+            group_index
+            >= len(groups)
+    ):
+        raise PreventUpdate
+
+    groups.pop(group_index)
+
+    return panel_data
+
 @app.callback(
     Output(
         {
@@ -2799,8 +4081,6 @@ def export_csv(
         filename,
         index=False,
     )
-
-
 
 
 if __name__ == "__main__":

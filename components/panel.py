@@ -21,6 +21,17 @@ def create_panel(
         []
     )
 
+    for group in panel["custom_groups"]:
+        group.setdefault(
+            "filters",
+            []
+        )
+
+        group.setdefault(
+            "pending_filters",
+            []
+        )
+
     panel.setdefault(
         "pending_custom_groups",
         []
@@ -506,16 +517,27 @@ def create_panel(
                                                 clearable=False,
                                             ),
                                         ],
+                                        id={
+                                            "type": "group-by-container",
+                                            "index": panel["id"],
+                                        },
                                         style={
                                             "display": (
-                                                "block"
-                                                if panel["chart_type"] in [
-                                                    "PSD Undersize",
-                                                    "PSD Frequency",
-                                                    "Grain Size Log",
-                                                    "Ternary",
-                                                ]
-                                                else "none"
+                                                "none"
+                                                if panel.get(
+                                                    "use_custom_groups",
+                                                    False,
+                                                )
+                                                else (
+                                                    "block"
+                                                    if panel["chart_type"] in [
+                                                        "PSD Undersize",
+                                                        "PSD Frequency",
+                                                        "Grain Size Log",
+                                                        "Ternary",
+                                                    ]
+                                                    else "none"
+                                                )
                                             )
                                         },
                                     ),

@@ -30,6 +30,23 @@ def make_grain_log(
         "None",
     )
 
+    custom_groups = panel.get(
+        "grouped_samples"
+    )
+
+    using_custom_groups = (
+            custom_groups is not None
+    )
+
+    sample_to_group = {}
+    sample_to_groups = {}
+
+    if using_custom_groups:
+        (
+            sample_to_groups,
+            sample_to_group,
+        ) = custom_groups
+
     subset = (
         subset.assign(
             _sort_key=subset["GSA_ID"]
@@ -37,14 +54,26 @@ def make_grain_log(
         )
     )
 
-    if (
+    if using_custom_groups:
+
+        subset["_group"] = (
+            subset["GSA_ID"]
+            .astype(str)
+            .map(sample_to_group)
+            .fillna(NULL_VALUE)
+        )
+
+        subset = subset.sort_values(
+            ["_group", "_sort_key"]
+        )
+
+    elif (
             group_by
             and group_by != "None"
     ):
-        subset = (
-            subset.sort_values(
-                [group_by, "_sort_key"]
-            )
+
+        subset = subset.sort_values(
+            [group_by, "_sort_key"]
         )
     else:
         subset = (
@@ -108,10 +137,20 @@ def make_grain_log(
 
         current_group = None
 
-        if (
+        if using_custom_groups:
+
+            current_group = (
+                sample_to_group.get(
+                    str(row["GSA_ID"]),
+                    NULL_VALUE,
+                )
+            )
+
+        elif (
                 group_by
                 and group_by != "None"
         ):
+
             value = row[group_by]
 
             if (

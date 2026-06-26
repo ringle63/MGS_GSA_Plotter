@@ -61,6 +61,23 @@ def make_ternary_plot(
         .to_dict("index")
     )
 
+    custom_groups = panel.get(
+        "grouped_samples"
+    )
+
+    using_custom_groups = (
+            custom_groups is not None
+    )
+
+    sample_to_group = {}
+    sample_to_groups = {}
+
+    if using_custom_groups:
+        (
+            sample_to_groups,
+            sample_to_group,
+        ) = custom_groups
+
     points = []
 
     for _, row in subset.iterrows():
@@ -80,11 +97,17 @@ def make_ternary_plot(
 
         sample = row["GSA_ID"]
 
-        if (
+        if using_custom_groups:
+
+            group = sample_to_group.get(
+                str(sample),
+                NULL_VALUE,
+            )
+
+        elif (
                 panel["group_by"] != "None"
                 and panel["group_by"] in row
         ):
-
             value = row[panel["group_by"]]
 
             if (
@@ -120,16 +143,39 @@ def make_ternary_plot(
     plot_df = points_df.copy()
 
     if (
-            not group_by
-            or group_by == "None"
+            not using_custom_groups
+            and (
+                not group_by
+                or group_by == "None"
+            )
     ):
         plot_df["group"] = "All Samples"
 
-    groups = sorted(
-        plot_df["group"]
-        .fillna(NULL_VALUE)
-        .unique()
-    )
+    if using_custom_groups:
+
+        groups = sorted(
+            {
+                group
+                for groups_list
+                in sample_to_groups.values()
+                for group in groups_list
+            }
+        )
+
+        if (
+                plot_df["group"]
+                        .eq(NULL_VALUE)
+                        .any()
+        ):
+            groups.append(NULL_VALUE)
+
+    else:
+
+        groups = sorted(
+            plot_df["group"]
+            .fillna(NULL_VALUE)
+            .unique()
+        )
 
     group_colors = (
         build_group_colors(
@@ -169,7 +215,10 @@ def make_ternary_plot(
 
                         color=(
                             group_colors[row["group"]]
-                            if group_by != "None"
+                            if (
+                                    using_custom_groups
+                                    or group_by != "None"
+                            )
                             else None
                         ),
 
@@ -200,10 +249,7 @@ def make_ternary_plot(
                         "<extra></extra>"
                     ),
 
-                    showlegend=(
-                            panel["show_legend"]
-                            and group_by == "None"
-                    ),
+                    showlegend=panel["show_legend"],
                 )
             )
 
@@ -270,18 +316,53 @@ def make_ternary_plot(
             and not points_df.empty
     ):
 
-        centroids = (
-            plot_df
-            .groupby("group")[
-                [
-                    "clay",
-                    "sand",
-                    "silt",
+        if using_custom_groups:
+
+            centroid_rows = []
+
+            for group_name in group_colors:
+
+                samples = [
+                    sample
+                    for sample, groups
+                    in sample_to_groups.items()
+                    if group_name in groups
                 ]
-            ]
-            .mean()
-            .reset_index()
-        )
+
+                group_df = plot_df[
+                    plot_df["sample"].isin(samples)
+                ]
+
+                if len(group_df) == 0:
+                    continue
+
+                centroid_rows.append(
+                    {
+                        "group": group_name,
+                        "clay": group_df["clay"].mean(),
+                        "sand": group_df["sand"].mean(),
+                        "silt": group_df["silt"].mean(),
+                    }
+                )
+
+            centroids = pd.DataFrame(
+                centroid_rows
+            )
+
+        else:
+
+            centroids = (
+                plot_df
+                .groupby("group")[
+                    [
+                        "clay",
+                        "sand",
+                        "silt",
+                    ]
+                ]
+                .mean()
+                .reset_index()
+            )
 
         symbols = [
             "diamond",
@@ -354,9 +435,30 @@ def make_ternary_plot(
             and not plot_df.empty
     ):
 
-        for group_name, group_df in (
-                plot_df.groupby("group")
-        ):
+        if using_custom_groups:
+
+            grouped = {}
+
+            for group_name in group_colors:
+                samples = [
+                    sample
+                    for sample, groups
+                    in sample_to_groups.items()
+                    if group_name in groups
+                ]
+
+                grouped[group_name] = plot_df[
+                    plot_df["sample"].isin(samples)
+                ]
+
+        else:
+
+            grouped = {
+                str(name): df
+                for name, df in plot_df.groupby("group")
+            }
+
+        for group_name, group_df in grouped.items():
 
             if len(group_df) < 3:
                 continue
