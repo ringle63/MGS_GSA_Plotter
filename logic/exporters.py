@@ -1,3 +1,8 @@
+from logic.custom_groups import (
+    build_custom_groups,
+    has_custom_groups,
+)
+
 def get_psd_export_df(
         mmes_df,
         selected_samples,
@@ -260,3 +265,162 @@ def get_grainlog_export_df(
     ]
 
     return subset[export_fields]
+
+def add_export_metadata(
+        df,
+        gsa_df,
+        panel,
+):
+    """
+    Adds:
+
+    - BoreholeID
+    - Group
+
+    to all export dataframes.
+    """
+
+    if df.empty:
+        return df
+
+    #
+    # BoreholeID
+    #
+
+    borehole_lookup = (
+        gsa_df[
+            [
+                "GSA_ID",
+                "BoreholeID",
+            ]
+        ]
+        .drop_duplicates(
+            "GSA_ID"
+        )
+        .set_index(
+            "GSA_ID"
+        )[
+            "BoreholeID"
+        ]
+        .to_dict()
+    )
+
+    df["BoreholeID"] = (
+        df["GSA_ID"]
+        .astype(str)
+        .map(borehole_lookup)
+    )
+
+    #
+    # Group
+    #
+
+    group_lookup = {}
+
+    #
+    # Custom Groups
+    #
+
+    if has_custom_groups(panel):
+
+        (
+            sample_to_groups,
+            _,
+        ) = build_custom_groups(
+            panel.get(
+                "custom_groups",
+                [],
+            ),
+            gsa_df,
+        )
+
+        for (
+                sample,
+                groups,
+        ) in sample_to_groups.items():
+
+            group_lookup[
+                str(sample)
+            ] = "; ".join(
+                sorted(groups)
+            )
+
+    #
+    # Top-level grouping
+    #
+
+    elif panel.get("group_by"):
+
+        field = panel["group_by"]
+
+        temp = gsa_df[
+            [
+                "GSA_ID",
+                field,
+            ]
+        ].copy()
+
+        temp[field] = (
+            temp[field]
+            .fillna(
+                "<null>"
+            )
+            .astype(str)
+        )
+
+        group_lookup = (
+            temp
+            .set_index(
+                "GSA_ID"
+            )[
+                field
+            ]
+            .to_dict()
+        )
+
+    #
+    # No grouping
+    #
+
+    else:
+
+        group_lookup = {
+            str(sample):
+                "All Samples"
+            for sample
+            in df["GSA_ID"]
+        }
+
+    df["Group"] = (
+        df["GSA_ID"]
+        .astype(str)
+        .map(group_lookup)
+        .fillna(
+            "All Samples"
+        )
+    )
+
+    #
+    # Move metadata columns to front
+    #
+
+    first_cols = [
+        c
+        for c in [
+            "GSA_ID",
+            "BoreholeID",
+            "Group",
+        ]
+        if c in df.columns
+    ]
+
+    other_cols = [
+        c
+        for c in df.columns
+        if c not in first_cols
+    ]
+
+    return df[
+        first_cols
+        + other_cols
+    ]

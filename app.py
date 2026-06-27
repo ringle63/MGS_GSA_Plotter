@@ -35,6 +35,7 @@ from logic.exporters import (
     get_frequency_export_df,
     get_ternary_export_df,
     get_grainlog_export_df,
+    add_export_metadata,
 )
 
 from logic.panel_filters import (
@@ -4108,6 +4109,12 @@ def export_csv(
 
     else:
         return None
+
+    df = add_export_metadata(
+        df,
+        gsa_df,
+        panel,
+    )
 
     return dcc.send_data_frame(
         df.to_csv,
