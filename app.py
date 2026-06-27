@@ -62,6 +62,17 @@ from dash_rgl import RGLLayout
 gsa_df = load_gsa_lab()
 mmes_df = load_mmes()
 
+print(
+    "Analysis methods in raw dataframe:"
+)
+print(
+    sorted(
+        gsa_df["analysis_method"]
+        .dropna()
+        .unique()
+    )
+)
+
 analysis_methods = sorted(
     gsa_df["analysis_method"]
     .dropna()
