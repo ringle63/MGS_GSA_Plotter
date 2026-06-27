@@ -2,6 +2,20 @@ import pandas as pd
 
 NULL_VALUE = "<null>"
 
+
+def normalize_filter_value(value):
+    if isinstance(value, list):
+        return [
+            str(v).strip().casefold()
+            for v in value
+        ]
+
+    if value is None:
+        return value
+
+    return str(value).strip().casefold()
+
+
 FILTER_FIELDS = {
     "analysis_method": "Analysis Method",
     "formation": "Formation",
@@ -111,13 +125,21 @@ def apply_filters(
                 else False
             )
 
-            values = [
-                v
-                for v in value
-                if v != NULL_VALUE
-            ]
+            values = normalize_filter_value(
+                [
+                    v
+                    for v in value
+                    if v != NULL_VALUE
+                ]
+            )
 
-            mask = series.astype(str).isin(values)
+            mask = (
+                series
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .isin(values)
+            )
 
             if contains_null:
                 mask |= series.isna()
@@ -130,13 +152,21 @@ def apply_filters(
                 else False
             )
 
-            values = [
-                v
-                for v in value
-                if v != NULL_VALUE
-            ]
+            values = normalize_filter_value(
+                [
+                    v
+                    for v in value
+                    if v != NULL_VALUE
+                ]
+            )
 
-            mask = ~series.astype(str).isin(values)
+            mask = ~(
+                series
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .isin(values)
+            )
 
             if contains_null:
                 mask &= ~series.isna()
@@ -164,7 +194,10 @@ def apply_filters(
             else:
                 mask = (
                         series.astype(str)
-                        == str(value)
+                        .str.strip()
+                        .str.upper()
+                        ==
+                        normalize_filter_value(value)
                 )
 
         elif operator == "!=":
@@ -177,7 +210,10 @@ def apply_filters(
             else:
                 mask = (
                         series.astype(str)
-                        != str(value)
+                        .str.strip()
+                        .str.upper()
+                        !=
+                        normalize_filter_value(value)
                 )
 
         elif operator == "<":
