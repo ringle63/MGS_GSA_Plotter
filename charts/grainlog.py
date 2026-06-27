@@ -47,31 +47,6 @@ def make_grain_log(
             sample_to_group,
         ) = custom_groups
 
-    print("\n========== GRAIN LOG GROUP DEBUG ==========")
-    print(f"Selected samples: {len(selected_samples)}")
-    print(f"Display groups (sample_to_group): {len(set(sample_to_group.values()))}")
-    print(f"Stats mappings (sample_to_groups): {len(sample_to_groups)}")
-
-    # What statistical groups exist?
-    all_stat_groups = sorted(
-        {
-            g
-            for groups in sample_to_groups.values()
-            for g in groups
-        }
-    )
-
-    print(f"Stat groups found: {all_stat_groups}")
-
-    # Show first 20 sample mappings only
-    print("\nFirst 20 sample mappings:")
-    for i, (sample, groups) in enumerate(sample_to_groups.items()):
-        print(f"{sample} -> {groups}")
-        if i >= 19:
-            break
-
-    print("===========================================\n")
-
     subset = (
         subset.assign(
             _sort_key=subset["GSA_ID"]
@@ -177,7 +152,6 @@ def make_grain_log(
                 for g in groups
             }
         )
-        print(f"all_groups = {all_groups}")
 
         for group_name in all_groups:
             samples = [
@@ -192,11 +166,6 @@ def make_grain_log(
                 .astype(str)
                 .isin(samples)
             ]
-            print(
-                f"Mean group '{group_name}' "
-                f"contains {len(samples)} mapped samples "
-                f"and {len(mean_rows[group_name])} rows in subset"
-            )
 
     elif (
             group_by
@@ -387,8 +356,6 @@ def make_grain_log(
             )
 
     if show_grainlog_mean:
-        print("\nCalculating means from:")
-        print(y_labels)
 
         for i, label in enumerate(y_labels):
 
@@ -419,9 +386,9 @@ def make_grain_log(
 
             for _, row in group_df.iterrows():
 
-                mmes_row = mmes_lookup.get(
-                    str(row["GSA_ID"])
-                )
+                sample = str(row["GSA_ID"])
+
+                mmes_row = mmes_lookup.get(sample)
 
                 grain = get_grain_log_classes(
                     row,
@@ -430,14 +397,23 @@ def make_grain_log(
                 )
 
                 if grain is not None:
+                    grain["_sample"] = sample
                     grains.append(grain)
 
             if not grains:
                 continue
 
             for cls in classes_order:
+
                 values = [
-                    g[cls]
+                    (
+                        0
+                        if (
+                                g[cls] is None
+                                or str(g[cls]) == "nan"
+                        )
+                        else g[cls]
+                    )
                     for g in grains
                 ]
 
@@ -467,11 +443,6 @@ def make_grain_log(
 
     display_labels = []
 
-    print("\nMean labels inserted:")
-    for label in y_labels:
-        if str(label).startswith("__MEAN__"):
-            print(label)
-
     for label in y_labels:
         if str(label).startswith("__MEAN__"):
 
@@ -485,15 +456,6 @@ def make_grain_log(
         else:
             display_labels.append(label)
 
-    print("\nLENGTH CHECK")
-    print("y_labels:", len(y_labels))
-    print("customdata:", len(customdata))
-
-    for cls in classes_order:
-        print(
-            cls,
-            len(class_values[cls])
-        )
     for cls in classes_order:
         fig.add_trace(
             go.Bar(
@@ -583,11 +545,6 @@ def make_grain_log(
             t=50,
             b=40,
         ),
-    )
-
-    print(
-        f"Samples: {len(y_labels)}, "
-        f"Figure height: {figure_height}"
     )
 
     return fig

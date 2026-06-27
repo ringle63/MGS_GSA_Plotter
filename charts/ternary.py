@@ -172,8 +172,7 @@ def make_ternary_plot(
                 for group in groups_list
             }
         )
-        print("plot_df empty:", plot_df.empty)
-        print("columns:", plot_df.columns.tolist())
+
         if (
                 plot_df["group"]
                         .eq(NULL_VALUE)
@@ -305,20 +304,6 @@ def make_ternary_plot(
         ),
     )
 
-    print(
-        "show_centroids =",
-        panel.get("show_centroids", False)
-    )
-
-    print(
-        "group_by =",
-        panel.get("group_by", "None")
-    )
-
-    print(
-        "points empty =",
-        points_df.empty
-    )
 
     if (
             panel.get(
@@ -386,8 +371,6 @@ def make_ternary_plot(
             "star",
         ]
 
-        print(plot_df.head())
-        print(centroids)
 
         for i, row in centroids.iterrows():
             fig.add_trace(

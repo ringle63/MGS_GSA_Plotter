@@ -809,11 +809,6 @@ def remove_global_filter(
     if not any(clicks):
         raise PreventUpdate
 
-    print("REMOVE CALLBACK")
-    print(clicks)
-    print(filters)
-    print(callback_context.triggered_id)
-
     trigger = callback_context.triggered_id
 
     if (
@@ -1762,10 +1757,6 @@ def add_panel_filter(
 
     panel["pending_panel_filters"] = filters
 
-    print(
-        panel["pending_panel_filters"]
-    )
-
     return panel_data
 
 
@@ -2274,21 +2265,6 @@ def update_graphs(
                     subset,
                 )
             )
-
-            print("\nCUSTOM GROUP DEBUG")
-            print("panel id:", panel["id"])
-
-            sample_to_groups, sample_to_group = (
-                panel["grouped_samples"]
-            )
-
-            print("sample_to_group:")
-            for k, v in list(sample_to_group.items())[:20]:
-                print(k, "->", v)
-
-            print("\nsample_to_groups:")
-            for k, v in list(sample_to_groups.items())[:20]:
-                print(k, "->", v)
 
         if chart_type == "PSD Undersize":
 

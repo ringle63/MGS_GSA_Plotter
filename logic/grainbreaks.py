@@ -1,7 +1,7 @@
 def get_grain_fractions(
-    sample_row,
-    mmes_row,
-    ternary_settings,
+        sample_row,
+        mmes_row,
+        ternary_settings,
 ):
     """
     Returns:
@@ -116,12 +116,12 @@ def get_grain_fractions(
         "break": clay_break,
     }
 
-def get_grain_log_classes(
-    sample_row,
-    mmes_row,
-    settings,
-):
 
+def get_grain_log_classes(
+        sample_row,
+        mmes_row,
+        settings,
+):
     method = sample_row["analysis_method"]
 
     if method == "Mastersizer":
@@ -177,7 +177,7 @@ def get_grain_log_classes(
                         ]
                 )
 
-        return {
+        grain = {
             "Gravel": 0,
             "Very Coarse Sand": sample_row["sandfrac_vc"],
             "Coarse Sand": sample_row["sandfrac_c"],
@@ -190,6 +190,15 @@ def get_grain_log_classes(
             "break": f"{clay_break}/{sand_break}",
         }
 
+        for key, value in grain.items():
+
+            if key in ["method", "break"]:
+                continue
+
+            if value is None or str(value) == "nan":
+                grain[key] = 0
+
+        return grain
     elif method == "Pipette":
 
         clay_break = settings["Pipette"]
@@ -204,7 +213,7 @@ def get_grain_log_classes(
 
     elif method == "Dry Sieve":
 
-        return {
+        grain = {
             "Gravel": sample_row["GravelG_2000_3500"],
             "Very Coarse Sand": sample_row["sandfracG_vc"],
             "Coarse Sand": sample_row["sandfracG_c"],
@@ -217,10 +226,20 @@ def get_grain_log_classes(
             "break": "Fixed",
         }
 
+        for key, value in grain.items():
+
+            if key in ["method", "break"]:
+                continue
+
+            if value is None or str(value) == "nan":
+                grain[key] = 0
+
+        return grain
+
     else:
         return None
 
-    return {
+    grain = {
         "Gravel": sample_row["GravelG_2000_3500"],
         "Very Coarse Sand": sample_row["sandfracG_vc"],
         "Coarse Sand": sample_row["sandfracG_c"],
@@ -235,3 +254,13 @@ def get_grain_log_classes(
             else 4
         ),
     }
+
+    for key, value in grain.items():
+
+        if key in ["method", "break"]:
+            continue
+
+        if value is None or str(value) == "nan":
+            grain[key] = 0
+
+    return grain
