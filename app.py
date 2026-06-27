@@ -167,6 +167,8 @@ app.layout = html.Div(
                     "show_samples": True,
                     "show_mean": False,
                     "show_grainlog_mean": False,
+                    "grainlog_sort_field": "None",
+                    "grainlog_sort_ascending": True,
                     "group_by": "None",
                     "show_std1": False,
                     "show_std2": False,
@@ -1068,6 +1070,8 @@ def add_panel(
             "show_samples": True,
             "show_mean": False,
             "show_grainlog_mean": False,
+            "grainlog_sort_field": "None",
+            "grainlog_sort_ascending": True,
             "group_by": "None",
             "show_std1": False,
             "show_std2": False,
@@ -2426,6 +2430,20 @@ def update_graphs(
         Input({"type": "show-covariance", "index": ALL}, "value"),
         Input({"type": "x-axis", "index": ALL}, "value"),
         Input({"type": "reference-breaks", "index": ALL}, "value"),
+        Input(
+            {
+                "type": "grainlog-sort-field",
+                "index": ALL,
+            },
+            "value",
+        ),
+        Input(
+            {
+                "type": "grainlog-sort-direction",
+                "index": ALL,
+            },
+            "value",
+        ),
     ],
     State("panel-store", "data"),
     prevent_initial_call=True,
@@ -2444,6 +2462,8 @@ def update_psd_settings(
         covariance,
         axes,
         breaks,
+        grainlog_sort_fields,
+        grainlog_sort_directions,
         panel_data,
 ):
     if (
@@ -2465,6 +2485,8 @@ def update_psd_settings(
             or len(panel_data) != len(axes)
             or len(panel_data) != len(breaks)
             or len(panel_data) != len(grainlog_means)
+            or len(panel_data) != len(grainlog_sort_fields)
+            or len(panel_data) != len(grainlog_sort_directions)
     ):
         raise PreventUpdate
 
@@ -2538,6 +2560,14 @@ def update_psd_settings(
 
         panel["show_break_62_5"] = (
                 "62.5" in (breaks[i] or [])
+        )
+        panel["grainlog_sort_field"] = (
+            grainlog_sort_fields[i]
+        )
+
+        panel["grainlog_sort_ascending"] = (
+                grainlog_sort_directions[i]
+                == "asc"
         )
 
     return panel_data

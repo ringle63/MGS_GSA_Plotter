@@ -445,6 +445,82 @@ def create_panel(
                                     ),
 
                                     html.Div(
+                                        [
+                                            html.Label("Sort By"),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type": "grainlog-sort-field",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                            {
+                                                                "label": "None",
+                                                                "value": "None",
+                                                            }
+                                                        ]
+                                                        + [
+                                                            {
+                                                                "label": label,
+                                                                "value": field,
+                                                            }
+                                                            for field, label
+                                                            in NUMERIC_FIELDS.items()
+                                                        ],
+                                                value=panel.get(
+                                                    "grainlog_sort_field",
+                                                    "None",
+                                                ),
+                                                clearable=False,
+                                            ),
+                                        ],
+                                        style={
+                                            "display":
+                                                "block"
+                                                if is_grain_log
+                                                else "none"
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        [
+                                            html.Label("Sort Direction"),
+
+                                            dcc.RadioItems(
+                                                id={
+                                                    "type": "grainlog-sort-direction",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {
+                                                        "label": "Ascending",
+                                                        "value": "asc",
+                                                    },
+                                                    {
+                                                        "label": "Descending",
+                                                        "value": "desc",
+                                                    },
+                                                ],
+                                                value=(
+                                                    "asc"
+                                                    if panel.get(
+                                                        "grainlog_sort_ascending",
+                                                        True,
+                                                    )
+                                                    else "desc"
+                                                ),
+                                                inline=True,
+                                            ),
+                                        ],
+                                        style={
+                                            "display":
+                                                "block"
+                                                if is_grain_log
+                                                else "none"
+                                        },
+                                    ),
+
+                                    html.Div(
                                         dcc.Checklist(
                                             id={
                                                 "type": "show-std1",

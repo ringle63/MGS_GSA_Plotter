@@ -83,6 +83,89 @@ def make_grain_log(
     subset = subset.drop(
         columns="_sort_key"
     )
+    sort_field = panel.get(
+        "grainlog_sort_field",
+        "None",
+    )
+
+    ascending = panel.get(
+        "grainlog_sort_ascending",
+        True,
+    )
+
+    if (
+            sort_field != "None"
+            and sort_field in subset.columns
+    ):
+        if using_custom_groups:
+
+            new_order = []
+
+            all_groups = sorted(
+                {
+                    g
+                    for groups
+                    in sample_to_groups.values()
+                    for g in groups
+                }
+            )
+
+            for group_name in all_groups:
+                group_samples = [
+                    sample
+                    for sample, groups
+                    in sample_to_groups.items()
+                    if group_name in groups
+                ]
+
+                group_df = subset[
+                    subset["GSA_ID"]
+                    .astype(str)
+                    .isin(group_samples)
+                ].copy()
+
+                group_df = group_df.sort_values(
+                    sort_field,
+                    ascending=ascending,
+                    na_position="last",
+                )
+
+                new_order.extend(
+                    group_df["GSA_ID"]
+                    .astype(str)
+                    .tolist()
+                )
+
+            subset = (
+                subset.set_index(
+                    subset["GSA_ID"]
+                    .astype(str)
+                )
+                .loc[new_order]
+                .reset_index(drop=True)
+            )
+
+        elif (
+                group_by
+                and group_by != "None"
+        ):
+
+            subset = subset.sort_values(
+                [group_by, sort_field],
+                ascending=[
+                    True,
+                    ascending,
+                ],
+                na_position="last",
+            )
+
+        else:
+
+            subset = subset.sort_values(
+                sort_field,
+                ascending=ascending,
+                na_position="last",
+            )
 
     settings = {
         "Mastersizer": panel["mastersizer_break"],
@@ -200,7 +283,7 @@ def make_grain_log(
                 )
 
                 customdata.append(
-                    [None] * 11
+                    [None] * 12
                 )
 
                 for cls in classes_order:
@@ -216,7 +299,7 @@ def make_grain_log(
             )
 
             customdata.append(
-                [None] * 11
+                [None] * 12
             )
 
             for cls in classes_order:
@@ -275,7 +358,7 @@ def make_grain_log(
                 )
 
                 customdata.append(
-                    [None] * 11
+                    [None] * 12
                 )
 
                 for cls in classes_order:
@@ -305,14 +388,14 @@ def make_grain_log(
                 )
 
                 customdata.append(
-                    [None] * 11
+                    [None] * 12
                 )
 
                 for cls in classes_order:
                     class_values[cls].append(0)
 
             customdata.append(
-                [None] * 11
+                [None] * 12
             )
 
             for cls in classes_order:
@@ -334,6 +417,27 @@ def make_grain_log(
 
         y_labels.append(sample)
 
+        if (
+                sort_field != "None"
+                and sort_field in row.index
+        ):
+            sort_value = row[sort_field]
+
+            if (
+                    sort_value is None
+                    or str(sort_value) == "nan"
+            ):
+                sort_value = None
+
+            else:
+                sort_value = round(float(sort_value), 2)
+
+                if sort_value.is_integer():
+                    sort_value = int(sort_value)
+
+        else:
+            sort_value = None
+
         customdata.append(
             [
                 sample,
@@ -347,6 +451,7 @@ def make_grain_log(
                 grain["Very Fine Sand"],
                 grain["Silt"],
                 grain["Clay"],
+                sort_value,
             ]
         )
 
@@ -434,6 +539,7 @@ def make_grain_log(
                 class_values["Very Fine Sand"][i],
                 class_values["Silt"][i],
                 class_values["Clay"][i],
+                None,
             ]
 
 
@@ -478,6 +584,16 @@ def make_grain_log(
                             "<b>%{customdata[0]}</b><br>"
                             "Method: %{customdata[1]}<br>"
                             "Break: %{customdata[2]}<br>"
+                            +
+                            (
+                                f"Sort ({sort_field}): "
+                                "%{customdata[11]}<br>"
+                                if (
+                                    sort_field != "None"
+                                )
+                                else ""
+                            )
+                            +
                             "<br>"
                             "Gravel: %{customdata[3]:.1f}%<br>"
                             "Very Coarse Sand: %{customdata[4]:.1f}%<br>"
