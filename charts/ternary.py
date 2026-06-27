@@ -135,6 +135,17 @@ def make_ternary_plot(
 
     points_df = pd.DataFrame(points)
 
+    if points_df.empty:
+
+        if panel["show_usda_triangle"]:
+            fig = add_usda_triangle(fig)
+
+        fig.update_layout(
+            title="Ternary Plot"
+        )
+
+        return fig
+
     group_by = panel.get(
         "group_by",
         "None",
@@ -161,7 +172,8 @@ def make_ternary_plot(
                 for group in groups_list
             }
         )
-
+        print("plot_df empty:", plot_df.empty)
+        print("columns:", plot_df.columns.tolist())
         if (
                 plot_df["group"]
                         .eq(NULL_VALUE)

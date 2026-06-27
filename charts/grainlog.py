@@ -47,6 +47,31 @@ def make_grain_log(
             sample_to_group,
         ) = custom_groups
 
+    print("\n========== GRAIN LOG GROUP DEBUG ==========")
+    print(f"Selected samples: {len(selected_samples)}")
+    print(f"Display groups (sample_to_group): {len(set(sample_to_group.values()))}")
+    print(f"Stats mappings (sample_to_groups): {len(sample_to_groups)}")
+
+    # What statistical groups exist?
+    all_stat_groups = sorted(
+        {
+            g
+            for groups in sample_to_groups.values()
+            for g in groups
+        }
+    )
+
+    print(f"Stat groups found: {all_stat_groups}")
+
+    # Show first 20 sample mappings only
+    print("\nFirst 20 sample mappings:")
+    for i, (sample, groups) in enumerate(sample_to_groups.items()):
+        print(f"{sample} -> {groups}")
+        if i >= 19:
+            break
+
+    print("===========================================\n")
+
     subset = (
         subset.assign(
             _sort_key=subset["GSA_ID"]
@@ -90,6 +115,11 @@ def make_grain_log(
         "Pipette": panel["pipette_break"],
     }
 
+    show_grainlog_mean = panel.get(
+        "show_grainlog_mean",
+        False,
+    )
+
     mmes_lookup = (
         mmes_df
         .set_index("Sample_Name_Final")
@@ -120,6 +150,8 @@ def make_grain_log(
 
     y_labels = []
 
+    display_labels = []
+
     group_line_positions = []
 
     group_label_positions = []
@@ -133,6 +165,93 @@ def make_grain_log(
 
     customdata = []
 
+    mean_rows = {}
+
+    if using_custom_groups:
+
+        all_groups = sorted(
+            {
+                g
+                for groups
+                in sample_to_groups.values()
+                for g in groups
+            }
+        )
+        print(f"all_groups = {all_groups}")
+
+        for group_name in all_groups:
+            samples = [
+                sample
+                for sample, groups
+                in sample_to_groups.items()
+                if group_name in groups
+            ]
+
+            mean_rows[group_name] = subset[
+                subset["GSA_ID"]
+                .astype(str)
+                .isin(samples)
+            ]
+            print(
+                f"Mean group '{group_name}' "
+                f"contains {len(samples)} mapped samples "
+                f"and {len(mean_rows[group_name])} rows in subset"
+            )
+
+    elif (
+            group_by
+            and group_by != "None"
+    ):
+
+        for name, df in subset.groupby(
+                group_by,
+                dropna=False,
+        ):
+
+            if (
+                    name is None
+                    or str(name) == "nan"
+            ):
+                name = NULL_VALUE
+
+            mean_rows[str(name)] = df
+
+    else:
+
+        mean_rows["All Samples"] = subset
+
+    if show_grainlog_mean:
+
+        if using_custom_groups:
+
+            for group_name in mean_rows:
+
+                y_labels.append(
+                    f"__MEAN__{group_name}"
+                )
+
+                customdata.append(
+                    [None] * 11
+                )
+
+                for cls in classes_order:
+                    class_values[cls].append(0)
+
+        elif (
+                not group_by
+                or group_by == "None"
+        ):
+
+            y_labels.append(
+                "__MEAN__All Samples"
+            )
+
+            customdata.append(
+                [None] * 11
+            )
+
+            for cls in classes_order:
+                class_values[cls].append(0)
     for _, row in subset.iterrows():
 
         current_group = None
@@ -203,6 +322,26 @@ def make_grain_log(
                 header
             )
 
+            if (
+                    show_grainlog_mean
+                    and not using_custom_groups
+            ):
+
+                mean_label = (
+                    f"__MEAN__{current_group}"
+                )
+
+                y_labels.append(
+                    mean_label
+                )
+
+                customdata.append(
+                    [None] * 11
+                )
+
+                for cls in classes_order:
+                    class_values[cls].append(0)
+
             customdata.append(
                 [None] * 11
             )
@@ -247,10 +386,118 @@ def make_grain_log(
                 grain[cls]
             )
 
+    if show_grainlog_mean:
+        print("\nCalculating means from:")
+        print(y_labels)
+
+        for i, label in enumerate(y_labels):
+
+            if not str(label).startswith(
+                    "__MEAN__"
+            ):
+                continue
+
+            group_name = (
+                str(label)
+                .replace(
+                    "__MEAN__",
+                    ""
+                )
+            )
+
+            group_df = mean_rows.get(
+                group_name
+            )
+
+            if (
+                    group_df is None
+                    or len(group_df) == 0
+            ):
+                continue
+
+            grains = []
+
+            for _, row in group_df.iterrows():
+
+                mmes_row = mmes_lookup.get(
+                    str(row["GSA_ID"])
+                )
+
+                grain = get_grain_log_classes(
+                    row,
+                    mmes_row,
+                    settings,
+                )
+
+                if grain is not None:
+                    grains.append(grain)
+
+            if not grains:
+                continue
+
+            for cls in classes_order:
+                values = [
+                    g[cls]
+                    for g in grains
+                ]
+
+                class_values[cls][i] = (
+                        sum(values)
+                        / len(values)
+                )
+
+            customdata[i] = [
+                f"{group_name} Mean",
+                "",
+                "",
+                class_values["Gravel"][i],
+                class_values["Very Coarse Sand"][i],
+                class_values["Coarse Sand"][i],
+                class_values["Medium Sand"][i],
+                class_values["Fine Sand"][i],
+                class_values["Very Fine Sand"][i],
+                class_values["Silt"][i],
+                class_values["Clay"][i],
+            ]
+
+
+    # ==========================
+    # DISPLAY LABELS
+    # ==========================
+
+    display_labels = []
+
+    print("\nMean labels inserted:")
+    for label in y_labels:
+        if str(label).startswith("__MEAN__"):
+            print(label)
+
+    for label in y_labels:
+        if str(label).startswith("__MEAN__"):
+
+            display_labels.append(
+                label.replace(
+                    "__MEAN__",
+                    "MEAN: "
+                )
+            )
+
+        else:
+            display_labels.append(label)
+
+    print("\nLENGTH CHECK")
+    print("y_labels:", len(y_labels))
+    print("customdata:", len(customdata))
+
+    for cls in classes_order:
+        print(
+            cls,
+            len(class_values[cls])
+        )
     for cls in classes_order:
         fig.add_trace(
             go.Bar(
-                y=y_labels,
+                y=display_labels,
                 x=class_values[cls],
                 orientation="h",
                 name=cls,

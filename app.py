@@ -166,6 +166,7 @@ app.layout = html.Div(
 
                     "show_samples": True,
                     "show_mean": False,
+                    "show_grainlog_mean": False,
                     "group_by": "None",
                     "show_std1": False,
                     "show_std2": False,
@@ -1071,6 +1072,7 @@ def add_panel(
             "show_labels": False,
             "show_samples": True,
             "show_mean": False,
+            "show_grainlog_mean": False,
             "group_by": "None",
             "show_std1": False,
             "show_std2": False,
@@ -2433,6 +2435,13 @@ def update_graphs(
         Input({"type": "show-labels", "index": ALL}, "value"),
         Input({"type": "show-samples", "index": ALL}, "value"),
         Input({"type": "show-mean", "index": ALL}, "value"),
+        Input(
+            {
+                "type": "show-grainlog-mean",
+                "index": ALL,
+            },
+            "value",
+        ),
         Input({"type": "show-std1", "index": ALL}, "value"),
         Input({"type": "show-std2", "index": ALL}, "value"),
         Input({"type": "show-std3", "index": ALL}, "value"),
@@ -2450,6 +2459,7 @@ def update_psd_settings(
         labels,
         samples,
         means,
+        grainlog_means,
         std1,
         std2,
         std3,
@@ -2478,6 +2488,7 @@ def update_psd_settings(
             or len(panel_data) != len(covariance)
             or len(panel_data) != len(axes)
             or len(panel_data) != len(breaks)
+            or len(panel_data) != len(grainlog_means)
     ):
         raise PreventUpdate
 
@@ -2496,6 +2507,11 @@ def update_psd_settings(
 
         panel["show_mean"] = (
                 "mean" in (means[i] or [])
+        )
+
+        panel["show_grainlog_mean"] = (
+                "mean"
+                in (grainlog_means[i] or [])
         )
 
         panel["show_std1"] = (

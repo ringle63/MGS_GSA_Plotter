@@ -419,6 +419,34 @@ def create_panel(
                                     html.Div(
                                         dcc.Checklist(
                                             id={
+                                                "type": "show-grainlog-mean",
+                                                "index": panel["id"],
+                                            },
+                                            options=[{
+                                                "label": "Show Mean",
+                                                "value": "mean",
+                                            }],
+                                            value=(
+                                                ["mean"]
+                                                if panel.get(
+                                                    "show_grainlog_mean",
+                                                    False,
+                                                )
+                                                else []
+                                            ),
+                                        ),
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_grain_log
+                                                else "none"
+                                            )
+                                        },
+                                    ),
+
+                                    html.Div(
+                                        dcc.Checklist(
+                                            id={
                                                 "type": "show-std1",
                                                 "index": panel["id"],
                                             },
