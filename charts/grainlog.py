@@ -168,9 +168,25 @@ def make_grain_log(
             )
 
     settings = {
-        "Mastersizer": panel["mastersizer_break"],
-        "MastersizerSand": panel["mastersizer_sand_break"],
-        "Pipette": panel["pipette_break"],
+        "Mastersizer":
+            panel["mastersizer_break"],
+
+        "MastersizerSand":
+            panel["mastersizer_sand_break"],
+
+        "Pipette":
+            panel["pipette_break"],
+
+        "GravelSettings":
+            panel.get(
+                "grainlog_gravel_settings",
+                {
+                    "Mastersizer": False,
+                    "Pipette": True,
+                    "Kehew": True,
+                    "Dry Sieve": True,
+                },
+            ),
     }
 
     show_grainlog_mean = panel.get(

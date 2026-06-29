@@ -521,6 +521,59 @@ def create_panel(
                                     ),
 
                                     html.Div(
+                                        [
+                                            html.Label(
+                                                "Include Gravel"
+                                            ),
+
+                                            dcc.Checklist(
+                                                id={
+                                                    "type": "grainlog-gravel",
+                                                    "index": panel["id"],
+                                                },
+                                                options=[
+                                                    {
+                                                        "label": " Mastersizer",
+                                                        "value": "Mastersizer",
+                                                    },
+                                                    {
+                                                        "label": " Pipette",
+                                                        "value": "Pipette",
+                                                    },
+                                                    {
+                                                        "label": " Kehew",
+                                                        "value": "Kehew",
+                                                    },
+                                                    {
+                                                        "label": " Dry Sieve",
+                                                        "value": "Dry Sieve",
+                                                    },
+                                                ],
+                                                value=[
+                                                    method
+                                                    for method, enabled
+                                                    in panel.get(
+                                                        "grainlog_gravel_settings",
+                                                        {
+                                                            "Mastersizer": False,
+                                                            "Pipette": True,
+                                                            "Kehew": True,
+                                                            "Dry Sieve": True,
+                                                        },
+                                                    ).items()
+                                                    if enabled
+                                                ],
+                                            ),
+                                        ],
+                                        style={
+                                            "display":
+                                                "block"
+                                                if is_grain_log
+                                                else "none"
+                                        },
+                                    ),
+
+                                    html.Div(
                                         dcc.Checklist(
                                             id={
                                                 "type": "show-std1",

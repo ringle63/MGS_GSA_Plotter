@@ -200,6 +200,13 @@ app.layout = html.Div(
                     "mastersizer_break": 8,
                     "pipette_break": 2,
                     "mastersizer_sand_break": 62.5,
+                    "grainlog_gravel_settings": {
+                        "Mastersizer": False,
+                        "Pipette": True,
+                        "Kehew": True,
+                        "Dry Sieve": True,
+                    },
+
                     "show_usda_triangle": True,
 
                     "panel_filters": [],
@@ -1100,6 +1107,14 @@ def add_panel(
             "mastersizer_break": 8,
             "mastersizer_sand_break": 62.5,
             "pipette_break": 2,
+
+            "grainlog_gravel_settings": {
+                "Mastersizer": False,
+                "Pipette": True,
+                "Kehew": True,
+                "Dry Sieve": True,
+            },
+
             "show_usda_triangle": True,
 
             "panel_filters": [],
@@ -2456,6 +2471,13 @@ def update_graphs(
             },
             "value",
         ),
+        Input(
+            {
+                "type": "grainlog-gravel",
+                "index": ALL,
+            },
+            "value",
+        ),
     ],
     State("panel-store", "data"),
     prevent_initial_call=True,
@@ -2476,6 +2498,7 @@ def update_psd_settings(
         breaks,
         grainlog_sort_fields,
         grainlog_sort_directions,
+        grainlog_gravel,
         panel_data,
 ):
     if (
@@ -2499,6 +2522,7 @@ def update_psd_settings(
             or len(panel_data) != len(grainlog_means)
             or len(panel_data) != len(grainlog_sort_fields)
             or len(panel_data) != len(grainlog_sort_directions)
+            or len(panel_data) != len(grainlog_gravel)
     ):
         raise PreventUpdate
 
@@ -2581,6 +2605,24 @@ def update_psd_settings(
                 grainlog_sort_directions[i]
                 == "asc"
         )
+        selected = (
+                grainlog_gravel[i]
+                or []
+        )
+
+        panel["grainlog_gravel_settings"] = {
+            "Mastersizer":
+                "Mastersizer" in selected,
+
+            "Pipette":
+                "Pipette" in selected,
+
+            "Kehew":
+                "Kehew" in selected,
+
+            "Dry Sieve":
+                "Dry Sieve" in selected,
+        }
 
     return panel_data
 

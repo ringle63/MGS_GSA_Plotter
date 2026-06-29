@@ -109,7 +109,11 @@ def get_grain_fractions(
     # Everyone else uses the existing logic
 
     return {
-        "clay": sample_row[clay_field],
+        "clay":
+            sample_row.get(
+                clay_field,
+                0,
+            ),
         "silt": sample_row[silt_field],
         "sand": sample_row["Sand625_2000"],
         "method": method,
@@ -124,47 +128,315 @@ def get_grain_log_classes(
 ):
     method = sample_row["analysis_method"]
 
-    if method == "Mastersizer":
+    gravel_settings = settings.get(
+        "GravelSettings",
+        {}
+    )
 
-        clay_break = settings["Mastersizer"]
-        sand_break = settings["MastersizerSand"]
+    include_gravel = (
+        gravel_settings.get(
+            method,
+            True,
+        )
+    )
 
-        clay_field = f"Clay0_{clay_break}"
+    def clean(grain):
+        for key, value in grain.items():
 
-        if clay_break == 2:
-            silt_field = "Silt2_625"
+            if key in [
+                "method",
+                "break",
+            ]:
+                continue
+
+            if (
+                    value is None
+                    or str(value) == "nan"
+            ):
+                grain[key] = 0
+
+        return grain
+
+    # =====================================================
+    # DRY SIEVE
+    # =====================================================
+
+    if method == "Dry Sieve":
+
+        if include_gravel:
+
+            grain = {
+                "Gravel":
+                    sample_row["GravelG_2000_3500"],
+                "Very Coarse Sand":
+                    sample_row["sandfracG_vc"],
+                "Coarse Sand":
+                    sample_row["sandfracG_c"],
+                "Medium Sand":
+                    sample_row["sandfracG_m"],
+                "Fine Sand":
+                    sample_row["sandfracG_f"],
+                "Very Fine Sand":
+                    sample_row["sandfracG_vf"],
+                "Silt":
+                    sample_row["FinesG_0_63"],
+                "Clay": 0,
+                "method": method,
+                "break": "Fixed",
+            }
+
         else:
-            silt_field = f"Silt_{clay_break}_625"
+
+            grain = {
+                "Gravel": 0,
+                "Very Coarse Sand":
+                    sample_row["sandfrac_vc"],
+                "Coarse Sand":
+                    sample_row["sandfrac_c"],
+                "Medium Sand":
+                    sample_row["sandfrac_m"],
+                "Fine Sand":
+                    sample_row["sandfrac_f"],
+                "Very Fine Sand":
+                    sample_row["sandfrac_vf"],
+                "Silt":
+                    sample_row["Fines_0_63"],
+                "Clay": 0,
+                "method": method,
+                "break": "Fixed",
+            }
+
+        return clean(grain)
+
+    # =====================================================
+    # KEHEW
+    # =====================================================
+
+    elif method == "Kehew":
+
+        if include_gravel:
+            prefix = "sandfracG"
+            clay_field = "ClayG_0_4"
+            silt_field = "SiltG_4_625"
+            gravel = sample_row[
+                "GravelG_2000_3500"
+            ]
+
+        else:
+            prefix = "sandfrac"
+            clay_field = "Clay0_4"
+            silt_field = "Silt_4_625"
+            gravel = 0
+
+        grain = {
+            "Gravel": gravel,
+            "Very Coarse Sand":
+                sample_row[f"{prefix}_vc"],
+            "Coarse Sand":
+                sample_row[f"{prefix}_c"],
+            "Medium Sand":
+                sample_row[f"{prefix}_m"],
+            "Fine Sand":
+                sample_row[f"{prefix}_f"],
+            "Very Fine Sand":
+                sample_row[f"{prefix}_vf"],
+            "Silt":
+                sample_row[silt_field],
+            "Clay":
+                sample_row.get(
+                    clay_field,
+                    0,
+                ),
+            "method": method,
+            "break": 4,
+        }
+
+        return clean(grain)
+
+    # =====================================================
+    # PIPETTE
+    # =====================================================
+
+    elif method == "Pipette":
+
+        clay_break = settings["Pipette"]
+
+        if include_gravel:
+
+            prefix = "sandfracG"
+            clay_field = (
+                f"ClayG_0_{clay_break}"
+            )
+            silt_field = (
+                f"SiltG_{clay_break}_625"
+            )
+            gravel = sample_row[
+                "GravelG_2000_3500"
+            ]
+
+        else:
+
+            prefix = "sandfrac"
+
+            clay_field = (
+                f"Clay0_{clay_break}"
+            )
+
+            if clay_break == 2:
+                silt_field = "Silt2_625"
+            else:
+                silt_field = (
+                    f"Silt_{clay_break}_625"
+                )
+
+            gravel = 0
+
+        grain = {
+            "Gravel": gravel,
+            "Very Coarse Sand":
+                sample_row[f"{prefix}_vc"],
+            "Coarse Sand":
+                sample_row[f"{prefix}_c"],
+            "Medium Sand":
+                sample_row[f"{prefix}_m"],
+            "Fine Sand":
+                sample_row[f"{prefix}_f"],
+            "Very Fine Sand":
+                sample_row[f"{prefix}_vf"],
+            "Silt":
+                sample_row[silt_field],
+            "Clay":
+                sample_row.get(
+                    clay_field,
+                    0,
+                ),
+            "method": method,
+            "break": clay_break,
+        }
+
+        return clean(grain)
+
+    # =====================================================
+    # MASTERSIZER
+    # =====================================================
+
+    elif method == "Mastersizer":
+
+        clay_break = settings[
+            "Mastersizer"
+        ]
+
+        sand_break = settings[
+            "MastersizerSand"
+        ]
+
+        if include_gravel:
+
+            clay_field = (
+                f"ClayG_0_{clay_break}"
+            )
+
+            if clay_break == 2:
+                silt_field = "SiltG_2_625"
+            else:
+                silt_field = (
+                    f"SiltG_{clay_break}_625"
+                )
+
+            gravel = sample_row[
+                "GravelG_2000_3500"
+            ]
+
+            vc = sample_row["sandfracG_vc"]
+            c = sample_row["sandfracG_c"]
+            m = sample_row["sandfracG_m"]
+            f = sample_row["sandfracG_f"]
+
+        else:
+
+            clay_field = (
+                f"Clay0_{clay_break}"
+            )
+
+            if clay_break == 2:
+                silt_field = "Silt2_625"
+            else:
+                silt_field = (
+                    f"Silt_{clay_break}_625"
+                )
+
+            gravel = 0
+
+            vc = sample_row["sandfrac_vc"]
+            c = sample_row["sandfrac_c"]
+            m = sample_row["sandfrac_m"]
+            f = sample_row["sandfrac_f"]
+
+        # --------------------------------------
+        # 62.5 µm break
+        # --------------------------------------
 
         if sand_break == 62.5:
 
-            vf_sand = sample_row["sandfrac_vf"]
+            if include_gravel:
+                vf_sand = sample_row[
+                    "sandfracG_vf"
+                ]
+            else:
+                vf_sand = sample_row[
+                    "sandfrac_vf"
+                ]
+
             silt = sample_row[silt_field]
+
+        # --------------------------------------
+        # 50 µm break
+        # --------------------------------------
 
         else:
 
             if mmes_row is None:
                 return None
 
-            vf_sand = mmes_row[
-                "Result_In_Range___50_125__μm"
-            ]
+            factor = 1
+
+            if include_gravel:
+                factor = (
+                    100
+                    - sample_row[
+                        "GravelG_2000_3500"
+                    ]
+                ) / 100
+
+            vf_sand = (
+                mmes_row[
+                    "Result_In_Range___50_125__μm"
+                ]
+                * factor
+            )
 
             if clay_break == 2:
 
-                silt = mmes_row[
-                    "Result_In_Range___2_50__μm"
-                ]
+                silt = (
+                    mmes_row[
+                        "Result_In_Range___2_50__μm"
+                    ]
+                    * factor
+                )
 
             elif clay_break == 8:
 
-                silt = mmes_row[
-                    "Result_In_Range___8_50__μm"
-                ]
+                silt = (
+                    mmes_row[
+                        "Result_In_Range___8_50__μm"
+                    ]
+                    * factor
+                )
 
             else:
 
                 silt = (
+                    (
                         100
                         - mmes_row[
                             "Result_In_Range___50_2000__μm"
@@ -175,92 +447,29 @@ def get_grain_log_classes(
                         - mmes_row[
                             "Result_In_Range___0_4__μm"
                         ]
+                    )
+                    * factor
                 )
 
         grain = {
-            "Gravel": 0,
-            "Very Coarse Sand": sample_row["sandfrac_vc"],
-            "Coarse Sand": sample_row["sandfrac_c"],
-            "Medium Sand": sample_row["sandfrac_m"],
-            "Fine Sand": sample_row["sandfrac_f"],
+            "Gravel": gravel,
+            "Very Coarse Sand": vc,
+            "Coarse Sand": c,
+            "Medium Sand": m,
+            "Fine Sand": f,
             "Very Fine Sand": vf_sand,
             "Silt": silt,
-            "Clay": sample_row[clay_field],
+            "Clay":
+                sample_row.get(
+                    clay_field,
+                    0,
+                ),
             "method": method,
-            "break": f"{clay_break}/{sand_break}",
+            "break":
+                f"{clay_break}/{sand_break}",
         }
 
-        for key, value in grain.items():
-
-            if key in ["method", "break"]:
-                continue
-
-            if value is None or str(value) == "nan":
-                grain[key] = 0
-
-        return grain
-    elif method == "Pipette":
-
-        clay_break = settings["Pipette"]
-
-        clay_field = f"ClayG_0_{clay_break}"
-        silt_field = f"SiltG_{clay_break}_625"
-
-    elif method == "Kehew":
-
-        clay_field = "ClayG_0_4"
-        silt_field = "SiltG_4_625"
-
-    elif method == "Dry Sieve":
-
-        grain = {
-            "Gravel": sample_row["GravelG_2000_3500"],
-            "Very Coarse Sand": sample_row["sandfracG_vc"],
-            "Coarse Sand": sample_row["sandfracG_c"],
-            "Medium Sand": sample_row["sandfracG_m"],
-            "Fine Sand": sample_row["sandfracG_f"],
-            "Very Fine Sand": sample_row["sandfracG_vf"],
-            "Silt": sample_row["FinesG_0_63"],
-            "Clay": 0,
-            "method": method,
-            "break": "Fixed",
-        }
-
-        for key, value in grain.items():
-
-            if key in ["method", "break"]:
-                continue
-
-            if value is None or str(value) == "nan":
-                grain[key] = 0
-
-        return grain
+        return clean(grain)
 
     else:
         return None
-
-    grain = {
-        "Gravel": sample_row["GravelG_2000_3500"],
-        "Very Coarse Sand": sample_row["sandfracG_vc"],
-        "Coarse Sand": sample_row["sandfracG_c"],
-        "Medium Sand": sample_row["sandfracG_m"],
-        "Fine Sand": sample_row["sandfracG_f"],
-        "Very Fine Sand": sample_row["sandfracG_vf"],
-        "Silt": sample_row[silt_field],
-        "Clay": sample_row[clay_field],
-        "method": method,
-        "break": (
-            clay_break if method == "Pipette"
-            else 4
-        ),
-    }
-
-    for key, value in grain.items():
-
-        if key in ["method", "break"]:
-            continue
-
-        if value is None or str(value) == "nan":
-            grain[key] = 0
-
-    return grain
