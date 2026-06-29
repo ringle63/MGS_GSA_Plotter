@@ -27,7 +27,23 @@ const RGLLayout = ({
         h: 8,
     }));
 
-    const [currentLayout, setCurrentLayout] = useState(defaultLayout);
+    const [currentLayout, setCurrentLayout] =
+        useState(
+            layout && layout.length > 0
+                ? layout
+                : defaultLayout
+        );
+
+    useEffect(() => {
+        if (
+            layout &&
+            layout.length > 0 &&
+            JSON.stringify(layout)
+                !== JSON.stringify(currentLayout)
+        ) {
+            setCurrentLayout(layout);
+        }
+    }, [layout]);
 
     useEffect(() => {
 
