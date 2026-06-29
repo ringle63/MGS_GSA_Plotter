@@ -649,6 +649,7 @@ def make_grain_log(
         title="Grain Size Log",
 
         autosize=False,
+        width=1400,
         height=figure_height,
 
         barmode="stack",
