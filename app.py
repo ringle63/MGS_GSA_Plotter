@@ -12,6 +12,10 @@ from dash import (
 import copy
 import pandas as pd
 
+import base64
+import json
+from datetime import datetime
+
 from logic.data_loader import (
     load_gsa_lab,
     load_mmes,
@@ -165,6 +169,41 @@ app.layout = html.Div(
     [
         html.H1("MGS_GSA_Plotter"),
 
+        html.Div(
+            [
+                html.Button(
+                    "Save State",
+                    id="save-state-btn",
+                    n_clicks=0,
+                ),
+
+                dcc.Download(
+                    id="download-state",
+                ),
+
+                dcc.Upload(
+                    id="load-state-upload",
+                    children=html.Button(
+                        "Load State",
+                    ),
+                    multiple=False,
+                ),
+
+                dcc.ConfirmDialog(
+                    id="load-state-confirm",
+                    message=(
+                        "Loading a saved state will replace "
+                        "your current workspace. Continue?"
+                    ),
+                ),
+            ],
+            style={
+                "display": "flex",
+                "gap": "10px",
+                "marginBottom": "20px",
+            },
+        ),
+
         dcc.Store(
             id="panel-store",
             data=[
@@ -240,6 +279,16 @@ app.layout = html.Div(
             data=[],
         ),
 
+        dcc.Store(
+            id="loaded-state",
+            data=None,
+        ),
+
+        dcc.Store(
+            id="pending-layout-restore",
+            data=[],
+        ),
+
         html.Div(
             [
                 create_globalselection(
@@ -294,6 +343,235 @@ app.layout = html.Div(
     ]
 )
 
+
+@app.callback(
+    Output(
+        "download-state",
+        "data",
+    ),
+    Input(
+        "save-state-btn",
+        "n_clicks",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    State(
+        "layout-store",
+        "data",
+    ),
+    State(
+        "global-filters",
+        "data",
+    ),
+    State(
+        "pending-global-filters",
+        "data",
+    ),
+    State(
+        "global-samples",
+        "value",
+    ),
+    prevent_initial_call=True,
+)
+def save_state(
+        n_clicks,
+        panel_store,
+        layout_store,
+        global_filters,
+        pending_global_filters,
+        global_samples,
+):
+
+    state = {
+        "app": "MGS_GSA_Plotter",
+        "version": "17.0",
+        "saved_at":
+            datetime.now().isoformat(),
+
+        "panel_store":
+            panel_store,
+
+        "layout_store":
+            layout_store,
+
+        "global_filters":
+            global_filters,
+
+        "pending_global_filters":
+            pending_global_filters,
+
+        "global_samples":
+            global_samples,
+    }
+
+    return dict(
+        content=json.dumps(
+            state,
+            indent=2,
+        ),
+        filename=(
+            f"MGS_GSA_State_"
+            f"{datetime.now():%Y%m%d_%H%M%S}.json"
+        ),
+    )
+
+@app.callback(
+    Output(
+        "loaded-state",
+        "data",
+    ),
+    Output(
+        "load-state-confirm",
+        "displayed",
+    ),
+    Input(
+        "load-state-upload",
+        "contents",
+    ),
+    prevent_initial_call=True,
+)
+def load_state_file(
+        contents,
+):
+    if not contents:
+        raise PreventUpdate
+
+    _, content_string = contents.split(",")
+
+    decoded = base64.b64decode(
+        content_string
+    )
+
+    state = json.loads(
+        decoded.decode(
+            "utf-8"
+        )
+    )
+
+    if (
+            state.get("app")
+            != "MGS_GSA_Plotter"
+    ):
+        raise PreventUpdate
+
+    return (
+        state,
+        True,
+    )
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "pending-global-filters",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "global-samples",
+        "value",
+        allow_duplicate=True,
+    ),
+    Output(
+        "pending-layout-restore",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        "load-state-confirm",
+        "submit_n_clicks",
+    ),
+    State(
+        "loaded-state",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def apply_loaded_state(
+        n_clicks,
+        state,
+):
+    if not state:
+        raise PreventUpdate
+
+    return (
+        state.get(
+            "panel_store",
+            [],
+        ),
+
+        state.get(
+            "global_filters",
+            [],
+        ),
+
+        state.get(
+            "pending_global_filters",
+            [],
+        ),
+
+        state.get(
+            "global_samples",
+            [],
+        ),
+
+        state.get(
+            "layout_store",
+            [],
+        ),
+    )
+@app.callback(
+    Output(
+        "layout-store",
+        "data",
+    ),
+    Input(
+        "panel-container",
+        "layout",
+    ),
+    prevent_initial_call=True,
+)
+def store_layout(layout):
+    return layout
+
+
+@app.callback(
+    Output(
+        "panel-container",
+        "layout",
+        allow_duplicate=True,
+    ),
+    Output(
+        "layout-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        "pending-layout-restore",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def restore_layout(
+        layout_data,
+):
+    if not layout_data:
+        raise PreventUpdate
+
+    return (
+        layout_data,
+        layout_data,
+    )
 
 @app.callback(
     Output(
@@ -1049,15 +1327,6 @@ def render_panels(panel_data):
         )
 
     return panels
-
-
-@app.callback(
-    Output("layout-store", "data"),
-    Input("panel-container", "layout"),
-    prevent_initial_call=True,
-)
-def store_layout(layout):
-    return layout
 
 
 @app.callback(
@@ -2430,7 +2699,6 @@ def update_graphs(
                 )
 
             )
-
 
     return contents
 
@@ -3991,6 +4259,7 @@ def clear_custom_group_filters(
 
     return panel_data
 
+
 @app.callback(
     Output(
         "panel-store",
@@ -4052,6 +4321,7 @@ def remove_custom_group(
     groups.pop(group_index)
 
     return panel_data
+
 
 @app.callback(
     Output(
