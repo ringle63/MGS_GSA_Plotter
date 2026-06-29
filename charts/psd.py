@@ -8,14 +8,21 @@ import pandas as pd
 
 from logic.filters import NULL_VALUE
 
+from logic.mmes_helpers import (
+    get_sample_mmes_row,
+    get_psd_columns,
+)
+
 from logic.groupcolors import (
     build_group_colors,
     darken_color,
 )
 
+
 def make_psd_plot(
         gsa_df,
         mmes_df,
+        mmes_rs_df,
         selected_samples,
         panel,
 ):
@@ -75,40 +82,71 @@ def make_psd_plot(
         )
         return fig
 
-    psd_cols = sorted(
-        [
-            c for c in mmes_df.columns
-            if c.startswith("PSD_")
-        ],
-        key=lambda x: float(
-            x.replace("PSD_", "").replace("_", ".")
+
+
+    plotted_samples = []
+    sample_curves = {}
+
+    for sample in selected_samples:
+
+        (
+            row,
+            source,
+        ) = get_sample_mmes_row(
+            sample,
+            mmes_df,
+            mmes_rs_df,
         )
-    )
 
-    x_vals = [
-        float(
-            c.replace("PSD_", "").replace("_", ".")
+        if row is None:
+            continue
+
+        plotted_samples.append(str(sample))
+
+        (
+            psd_cols,
+            x_vals,
+        ) = get_psd_columns(
+            source,
+            mmes_df,
+            mmes_rs_df,
         )
-        for c in psd_cols
-    ]
 
-    plot_x = x_vals.copy()
+        plot_x = x_vals.copy()
 
-    if x_axis == "phi":
-        import numpy as np
+        if x_axis == "phi":
+            import numpy as np
 
-        plot_x = [
-            -np.log2(x / 1000)
-            for x in plot_x
-        ]
+            plot_x = [
+                -np.log2(
+                    x / 1000
+                )
+                for x in plot_x
+            ]
 
-    subset = (
-        mmes_df[
-            mmes_df["Sample_Name_Final"]
-            .astype(str)
-            .isin(selected_samples)
-        ]
-            .copy()
+        y_vals = row[
+            psd_cols
+        ].tolist()
+
+        sample_curves[str(sample)] = {
+            "source": source,
+            "x": x_vals,
+            "y": y_vals,
+        }
+
+        mode = (
+            "lines+text"
+            if show_labels
+            else "lines"
+        )
+
+        line_color = None
+
+    subset = pd.DataFrame(
+        {
+            "Sample_Name_Final":
+                plotted_samples
+        }
     )
 
     if using_custom_groups:
@@ -205,9 +243,20 @@ def make_psd_plot(
                 row["Sample_Name_Final"]
             )
 
-            y_vals = row[
-                psd_cols
-            ].tolist()
+            curve = sample_curves[sample]
+
+            x_vals = curve["x"]
+            y_vals = curve["y"]
+
+            plot_x = x_vals.copy()
+
+            if x_axis == "phi":
+                import numpy as np
+
+                plot_x = [
+                    -np.log2(x / 1000)
+                    for x in plot_x
+                ]
 
             mode = (
                 "lines+text"
@@ -220,11 +269,8 @@ def make_psd_plot(
             if using_custom_groups or group_by != "None":
 
                 if group_by == "GSA_ID":
-
                     group_name = sample
-
                 else:
-
                     group_name = row["_group"]
 
                 line_color = (
@@ -241,22 +287,22 @@ def make_psd_plot(
                     mode=mode,
                     name=sample,
                     showlegend=show_legend,
-
                     line=dict(
                         color=line_color,
                     ),
-
                     text=[
                              None
                          ] * (
                                  len(y_vals) - 1
-                         ) + [sample],
-
+                         ) + [
+                             sample
+                         ],
                     textposition="middle right",
                 )
             )
 
-    if show_mean and len(subset):
+    # if show_mean and len(subset):
+    if False:
 
         if (
                 group_by == "None"

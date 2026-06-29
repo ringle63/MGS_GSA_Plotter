@@ -19,6 +19,7 @@ from datetime import datetime
 from logic.data_loader import (
     load_gsa_lab,
     load_mmes,
+    load_mmes_rs,
 )
 from components.globalselection import create_globalselection
 from components.panel import create_panel
@@ -66,6 +67,7 @@ from dash_rgl import RGLLayout
 
 gsa_df = load_gsa_lab()
 mmes_df = load_mmes()
+mmes_rs_df = load_mmes_rs()
 
 print(
     "Analysis methods in raw dataframe:"
@@ -2571,6 +2573,7 @@ def update_graphs(
             fig = make_psd_plot(
                 gsa_df,
                 mmes_df,
+                mmes_rs_df,
                 panel_samples,
                 panel,
             )
@@ -2580,6 +2583,7 @@ def update_graphs(
             fig = make_frequency_plot(
                 gsa_df,
                 mmes_df,
+                mmes_rs_df,
                 panel_samples,
                 panel,
             )

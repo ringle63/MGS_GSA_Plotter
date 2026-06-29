@@ -3,8 +3,10 @@ from logic.custom_groups import (
     has_custom_groups,
 )
 
+
 def get_psd_export_df(
         mmes_df,
+        mmes_rs_df,
         selected_samples,
 ):
     psd_cols = sorted(
@@ -38,6 +40,7 @@ def get_psd_export_df(
 
 def get_frequency_export_df(
         mmes_df,
+        mmes_rs_df,
         selected_samples,
 ):
     fr_cols = sorted(
@@ -68,12 +71,12 @@ def get_frequency_export_df(
 
     return subset
 
-def get_ternary_export_df(
-    gsa_df,
-    selected_samples,
-    panel,
-):
 
+def get_ternary_export_df(
+        gsa_df,
+        selected_samples,
+        panel,
+):
     subset = gsa_df[
         gsa_df["GSA_ID"]
         .astype(str)
@@ -156,12 +159,12 @@ def get_ternary_export_df(
 
     return subset[export_fields]
 
-def get_grainlog_export_df(
-    gsa_df,
-    selected_samples,
-    panel,
-):
 
+def get_grainlog_export_df(
+        gsa_df,
+        selected_samples,
+        panel,
+):
     subset = gsa_df[
         gsa_df["GSA_ID"]
         .astype(str)
@@ -266,6 +269,7 @@ def get_grainlog_export_df(
 
     return subset[export_fields]
 
+
 def add_export_metadata(
         df,
         gsa_df,
@@ -338,7 +342,6 @@ def add_export_metadata(
                 sample,
                 groups,
         ) in sample_to_groups.items():
-
             group_lookup[
                 str(sample)
             ] = "; ".join(
@@ -423,4 +426,4 @@ def add_export_metadata(
     return df[
         first_cols
         + other_cols
-    ]
+        ]

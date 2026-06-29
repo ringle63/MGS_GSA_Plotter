@@ -17,6 +17,7 @@ from logic.groupcolors import (
 def make_frequency_plot(
         gsa_df,
         mmes_df,
+        mmes_rs_df,
         selected_samples,
         panel,
 ):

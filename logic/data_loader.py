@@ -8,6 +8,11 @@ def load_gsa_lab(path="data/GSA_Lab_062926.xlsx"):
 def load_mmes(path="data/GSA_MMES_062726.xlsx"):
     return pd.read_excel(path)
 
+
+def load_mmes_rs(path="data/RS_GSA_MMES_062926.xlsx"):
+    return pd.read_excel(path)
+
+
 def get_psd_columns(mmes_df):
     return sorted(
         [c for c in mmes_df.columns if c.startswith("PSD_")],
@@ -20,6 +25,7 @@ def get_fr_columns(mmes_df):
         [c for c in mmes_df.columns if c.startswith("FR_")],
         key=lambda x: float(x.replace("FR_", "").replace("_", "."))
     )
+
 
 def build_master_lookup(gsa_df, mmes_df):
     """
