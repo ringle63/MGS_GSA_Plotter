@@ -46,8 +46,13 @@ BASE_FIELDS = [
     "Silt2_625",
     "Silt_4_625",
     "Silt_8_625",
+    #Former MMES Field
+    "Silt_8_50",
 
     "Sand625_2000",
+    #Former MMES Fields
+    "Sand_50_2000",
+    "VFSand_50_125",
 
     "ClayG_0_2",
     "ClayG_0_4",
@@ -88,8 +93,6 @@ MASTERSIZER_FIELDS = [
 
     "Result_In_Range___0_2__μm",
     "Result_In_Range___2_50__μm",
-    "Result_In_Range___50_2000__μm",
-    "Result_In_Range___2000_3500__μm",
 
     "Result_In_Range___0_4__μm",
     "Result_In_Range___4_62_5__μm",
@@ -104,7 +107,6 @@ MASTERSIZER_FIELDS = [
     "Result_In_Range___6_62_5__μm",
 
     "Result_In_Range___0_8__μm",
-    "Result_In_Range___8_50__μm",
     "Result_In_Range___8_62_5__μm",
 
     "Result_In_Range___50_125__μm",

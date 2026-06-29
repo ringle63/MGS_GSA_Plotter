@@ -58,7 +58,12 @@ def get_grain_fractions(
 
     if method == "Mastersizer":
 
-        if mmes_row is None:
+        requires_mmes = (
+                sand_break == 50
+                and clay_break in [2, 4]
+        )
+
+        if requires_mmes and mmes_row is None:
             return None
 
         clay = sample_row[clay_field]
@@ -71,9 +76,7 @@ def get_grain_fractions(
         else:  # 50 µm break
 
             sand = (
-                    mmes_row["Result_In_Range___50_2000__μm"]
-                    +
-                    mmes_row["Result_In_Range___2000_3500__μm"]
+                    sample_row["Sand_50_2000"]
             )
 
             if clay_break == 2:
@@ -84,9 +87,7 @@ def get_grain_fractions(
 
             elif clay_break == 8:
 
-                silt = mmes_row[
-                    "Result_In_Range___8_50__μm"
-                ]
+                silt = sample_row["Silt_8_50"]
 
             else:  # 4 µm
 
@@ -395,7 +396,9 @@ def get_grain_log_classes(
 
         else:
 
-            if mmes_row is None:
+            requires_mmes = clay_break in [2, 4]
+
+            if requires_mmes and mmes_row is None:
                 return None
 
             factor = 1
@@ -409,11 +412,10 @@ def get_grain_log_classes(
                 ) / 100
 
             vf_sand = (
-                mmes_row[
-                    "Result_In_Range___50_125__μm"
-                ]
+                sample_row["VFSand_50_125"]
                 * factor
             )
+
 
             if clay_break == 2:
 
@@ -427,9 +429,7 @@ def get_grain_log_classes(
             elif clay_break == 8:
 
                 silt = (
-                    mmes_row[
-                        "Result_In_Range___8_50__μm"
-                    ]
+                    sample_row["Silt_8_50"]
                     * factor
                 )
 
@@ -438,12 +438,7 @@ def get_grain_log_classes(
                 silt = (
                     (
                         100
-                        - mmes_row[
-                            "Result_In_Range___50_2000__μm"
-                        ]
-                        - mmes_row[
-                            "Result_In_Range___2000_3500__μm"
-                        ]
+                        - sample_row["Sand_50_2000"]
                         - mmes_row[
                             "Result_In_Range___0_4__μm"
                         ]
