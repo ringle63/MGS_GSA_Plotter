@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def load_gsa_lab(path="data/GSA_Lab_062926.xlsx"):
+def load_gsa_lab(path="data/GSA_Lab_070726.xlsx"):
     return pd.read_excel(path)
 
 

@@ -1,10 +1,10 @@
 import plotly.graph_objects as go
+import numpy as np
+import pandas as pd
 
 from logic.legendsorting import (
     gsa_sort_key,
 )
-
-import pandas as pd
 
 from logic.filters import NULL_VALUE
 
@@ -112,18 +112,6 @@ def make_psd_plot(
             mmes_rs_df,
         )
 
-        plot_x = x_vals.copy()
-
-        if x_axis == "phi":
-            import numpy as np
-
-            plot_x = [
-                -np.log2(
-                    x / 1000
-                )
-                for x in plot_x
-            ]
-
         y_vals = row[
             psd_cols
         ].tolist()
@@ -133,14 +121,6 @@ def make_psd_plot(
             "x": x_vals,
             "y": y_vals,
         }
-
-        mode = (
-            "lines+text"
-            if show_labels
-            else "lines"
-        )
-
-        line_color = None
 
     subset = pd.DataFrame(
         {
@@ -243,6 +223,9 @@ def make_psd_plot(
                 row["Sample_Name_Final"]
             )
 
+            if sample not in sample_curves:
+                continue
+
             curve = sample_curves[sample]
 
             x_vals = curve["x"]
@@ -251,8 +234,6 @@ def make_psd_plot(
             plot_x = x_vals.copy()
 
             if x_axis == "phi":
-                import numpy as np
-
                 plot_x = [
                     -np.log2(x / 1000)
                     for x in plot_x
@@ -301,8 +282,11 @@ def make_psd_plot(
                 )
             )
 
-    # if show_mean and len(subset):
-    if False:
+    if show_mean and len(subset):
+
+        # -------------------------------------------------
+        # Build groups exactly as before
+        # -------------------------------------------------
 
         if (
                 group_by == "None"
@@ -322,6 +306,7 @@ def make_psd_plot(
             grouped = {}
 
             for group_name in group_colors:
+
                 samples = [
                     sample
                     for sample, groups
@@ -341,68 +326,409 @@ def make_psd_plot(
 
             grouped = {
                 str(name): df
-                for name, df in subset.groupby("_group")
+                for name, df
+                in subset.groupby("_group")
             }
+
+        # -------------------------------------------------
+        # Calculate mean/std for each group
+        # -------------------------------------------------
 
         for group_name, group_df in grouped.items():
 
-            if len(group_df) == 0:
-                continue
-
-            if len(group_df) < 2:
-                continue
-
-            mean_curve = (
-                group_df[psd_cols]
-                .astype(float)
-                .mean()
+            group_samples = (
+                group_df["Sample_Name_Final"]
+                .astype(str)
+                .tolist()
             )
 
-            std_curve = (
-                group_df[psd_cols]
-                .astype(float)
-                .std()
+            group_samples = [
+                sample
+                for sample in group_samples
+                if sample in sample_curves
+            ]
+
+            # A displayed group mean requires at least
+            # two total samples.
+            if len(group_samples) < 2:
+                continue
+
+            # -------------------------------------------------
+            # Split samples by MMES source
+            # -------------------------------------------------
+
+            source_samples = {}
+
+            for sample in group_samples:
+
+                source = sample_curves[
+                    sample
+                ]["source"]
+
+                source_samples.setdefault(
+                    source,
+                    []
+                ).append(sample)
+
+            # -------------------------------------------------
+            # Calculate native-bin summary for each source
+            #
+            # Individual sample curves are NOT interpolated.
+            # Each source is summarized on its own native bins.
+            # -------------------------------------------------
+
+            source_summaries = {}
+
+            for source, samples in source_samples.items():
+
+                first_curve = sample_curves[
+                    samples[0]
+                ]
+
+                source_x = np.asarray(
+                    first_curve["x"],
+                    dtype=float,
+                )
+
+                source_curves = []
+
+                for sample in samples:
+
+                    curve = sample_curves[sample]
+
+                    curve_x = np.asarray(
+                        curve["x"],
+                        dtype=float,
+                    )
+
+                    curve_y = np.asarray(
+                        curve["y"],
+                        dtype=float,
+                    )
+
+                    # Samples from the same source should
+                    # have identical native grain-size bins.
+                    if (
+                            len(curve_x) != len(source_x)
+                            or not np.array_equal(
+                                curve_x,
+                                source_x,
+                            )
+                    ):
+                        continue
+
+                    source_curves.append(
+                        curve_y
+                    )
+
+                if not source_curves:
+                    continue
+
+                source_curves = np.asarray(
+                    source_curves,
+                    dtype=float,
+                )
+
+                source_n = len(
+                    source_curves
+                )
+
+                source_mean = np.nanmean(
+                    source_curves,
+                    axis=0,
+                )
+
+                # n = 1 is allowed for a source when the
+                # final group contains samples from another
+                # source. Its within-source variance is zero.
+                if source_n > 1:
+
+                    source_var = np.nanvar(
+                        source_curves,
+                        axis=0,
+                        ddof=1,
+                    )
+
+                else:
+
+                    source_var = np.zeros_like(
+                        source_mean,
+                        dtype=float,
+                    )
+
+                source_summaries[source] = {
+                    "n": source_n,
+                    "x": source_x,
+                    "mean": source_mean,
+                    "var": source_var,
+                }
+
+            if not source_summaries:
+                continue
+
+            total_n = sum(
+                summary["n"]
+                for summary
+                in source_summaries.values()
             )
 
-            plus1 = (
-                    mean_curve + std_curve
-            ).clip(0, 100)
+            if total_n < 2:
+                continue
 
-            minus1 = (
-                    mean_curve - std_curve
-            ).clip(0, 100)
+            # -------------------------------------------------
+            # ONE SOURCE
+            #
+            # Preserve native bins. No interpolation.
+            # -------------------------------------------------
 
-            plus2 = (
-                    mean_curve + 2 * std_curve
-            ).clip(0, 100)
+            if len(source_summaries) == 1:
 
-            minus2 = (
-                    mean_curve - 2 * std_curve
-            ).clip(0, 100)
+                summary = next(
+                    iter(
+                        source_summaries.values()
+                    )
+                )
 
-            plus3 = (
-                    mean_curve + 3 * std_curve
-            ).clip(0, 100)
+                if summary["n"] < 2:
+                    continue
 
-            minus3 = (
-                    mean_curve - 3 * std_curve
-            ).clip(0, 100)
+                mean_x = summary["x"]
+                mean_curve = summary["mean"]
+
+                std_curve = np.sqrt(
+                    summary["var"]
+                )
+
+            # -------------------------------------------------
+            # MULTIPLE SOURCES
+            #
+            # Interpolate only the SOURCE SUMMARY curves,
+            # never the individual sample curves.
+            # -------------------------------------------------
+
+            else:
+
+                summaries = list(
+                    source_summaries.values()
+                )
+
+                # Restrict the combined curve to the grain-size
+                # range actually covered by every source.
+                common_min = max(
+                    np.min(summary["x"])
+                    for summary in summaries
+                )
+
+                common_max = min(
+                    np.max(summary["x"])
+                    for summary in summaries
+                )
+
+                if common_min >= common_max:
+                    continue
+
+                # Use the union of the native measurement bins
+                # from both sources within their shared range.
+                mean_x = np.unique(
+                    np.concatenate([
+                        summary["x"][
+                            (
+                                summary["x"] >= common_min
+                            )
+                            & (
+                                summary["x"] <= common_max
+                            )
+                        ]
+                        for summary in summaries
+                    ])
+                )
+
+                if len(mean_x) == 0:
+                    continue
+
+                # PSD grain-size bins are logarithmically
+                # distributed, so interpolate in log grain-size
+                # space rather than raw linear micrometers.
+                log_mean_x = np.log10(
+                    mean_x
+                )
+
+                interpolated_summaries = []
+
+                for summary in summaries:
+
+                    source_x = summary["x"]
+
+                    log_source_x = np.log10(
+                        source_x
+                    )
+
+                    interp_mean = np.interp(
+                        log_mean_x,
+                        log_source_x,
+                        summary["mean"],
+                    )
+
+                    interp_var = np.interp(
+                        log_mean_x,
+                        log_source_x,
+                        summary["var"],
+                    )
+
+                    interpolated_summaries.append({
+                        "n": summary["n"],
+                        "mean": interp_mean,
+                        "var": interp_var,
+                    })
+
+                # ---------------------------------------------
+                # Weighted combined mean
+                # ---------------------------------------------
+
+                mean_curve = np.zeros(
+                    len(mean_x),
+                    dtype=float,
+                )
+
+                for summary in interpolated_summaries:
+
+                    mean_curve += (
+                        summary["n"]
+                        * summary["mean"]
+                    )
+
+                mean_curve /= total_n
+
+                # ---------------------------------------------
+                # Combined sample variance
+                #
+                # Includes:
+                #   1. within-source variation
+                #   2. between-source mean differences
+                #
+                # This is NOT an average of the source SDs.
+                # ---------------------------------------------
+
+                combined_m2 = np.zeros(
+                    len(mean_x),
+                    dtype=float,
+                )
+
+                for summary in interpolated_summaries:
+
+                    n = summary["n"]
+                    source_mean = summary["mean"]
+                    source_var = summary["var"]
+
+                    if n > 1:
+
+                        combined_m2 += (
+                            (n - 1)
+                            * source_var
+                        )
+
+                    combined_m2 += (
+                        n
+                        * (
+                            source_mean
+                            - mean_curve
+                        ) ** 2
+                    )
+
+                combined_var = (
+                    combined_m2
+                    / (total_n - 1)
+                )
+
+                std_curve = np.sqrt(
+                    np.maximum(
+                        combined_var,
+                        0,
+                    )
+                )
+
+            # -------------------------------------------------
+            # Build standard-deviation curves
+            # -------------------------------------------------
+
+            plus1 = np.clip(
+                mean_curve + std_curve,
+                0,
+                100,
+            )
+
+            minus1 = np.clip(
+                mean_curve - std_curve,
+                0,
+                100,
+            )
+
+            plus2 = np.clip(
+                mean_curve + 2 * std_curve,
+                0,
+                100,
+            )
+
+            minus2 = np.clip(
+                mean_curve - 2 * std_curve,
+                0,
+                100,
+            )
+
+            plus3 = np.clip(
+                mean_curve + 3 * std_curve,
+                0,
+                100,
+            )
+
+            minus3 = np.clip(
+                mean_curve - 3 * std_curve,
+                0,
+                100,
+            )
+
+            # -------------------------------------------------
+            # Convert mean x-axis to selected display axis
+            # -------------------------------------------------
+
+            mean_plot_x = mean_x.copy()
+
+            if x_axis == "phi":
+
+                mean_plot_x = (
+                    -np.log2(
+                        mean_x / 1000
+                    )
+                )
+
+            # ---------------------------------------------
+            # Group color
+            # ---------------------------------------------
+
+            group_color = group_colors.get(
+                group_name,
+                "#808080",
+            )
+
+            mean_color = darken_color(
+                group_color,
+                factor=0.35,
+            )
+
+            # ---------------------------------------------
+            # Mean
+            # ---------------------------------------------
 
             fig.add_trace(
                 go.Scatter(
-                    x=plot_x,
+                    x=mean_plot_x,
                     y=mean_curve,
                     mode="lines",
                     name=f"{group_name} Mean",
                     line=dict(
                         width=5,
                         dash="dash",
-                        color=darken_color(
-                            group_colors[
-                                group_name
-                            ],
-                            factor=0.35,
-                        ),
+                        color=mean_color,
                     ),
                     hovertemplate=(
                         f"{group_name} Mean"
@@ -415,25 +741,28 @@ def make_psd_plot(
                 )
             )
 
+            # ---------------------------------------------
+            # ±1 standard deviation
+            # ---------------------------------------------
+
             if show_std1:
 
                 for y, sign in [
                     (plus1, "+1σ"),
                     (minus1, "-1σ"),
                 ]:
+
                     fig.add_trace(
                         go.Scatter(
-                            x=plot_x,
+                            x=mean_plot_x,
                             y=y,
                             mode="lines",
-                            name=f"{group_name} {sign}",
+                            name=(
+                                f"{group_name} "
+                                f"{sign}"
+                            ),
                             line=dict(
-                                color=darken_color(
-                                    group_colors[
-                                        group_name
-                                    ],
-                                    factor=0.35,
-                                ),
+                                color=mean_color,
                                 width=2,
                                 dash="dot",
                             ),
@@ -448,25 +777,28 @@ def make_psd_plot(
                         )
                     )
 
+            # ---------------------------------------------
+            # ±2 standard deviations
+            # ---------------------------------------------
+
             if show_std2:
 
                 for y, sign in [
                     (plus2, "+2σ"),
                     (minus2, "-2σ"),
                 ]:
+
                     fig.add_trace(
                         go.Scatter(
-                            x=plot_x,
+                            x=mean_plot_x,
                             y=y,
                             mode="lines",
-                            name=f"{group_name} {sign}",
+                            name=(
+                                f"{group_name} "
+                                f"{sign}"
+                            ),
                             line=dict(
-                                color=darken_color(
-                                    group_colors[
-                                        group_name
-                                    ],
-                                    factor=0.35,
-                                ),
+                                color=mean_color,
                                 width=2,
                                 dash="dashdot",
                             ),
@@ -481,25 +813,28 @@ def make_psd_plot(
                         )
                     )
 
+            # ---------------------------------------------
+            # ±3 standard deviations
+            # ---------------------------------------------
+
             if show_std3:
 
                 for y, sign in [
                     (plus3, "+3σ"),
                     (minus3, "-3σ"),
                 ]:
+
                     fig.add_trace(
                         go.Scatter(
-                            x=plot_x,
+                            x=mean_plot_x,
                             y=y,
                             mode="lines",
-                            name=f"{group_name} {sign}",
+                            name=(
+                                f"{group_name} "
+                                f"{sign}"
+                            ),
                             line=dict(
-                                color=darken_color(
-                                    group_colors[
-                                        group_name
-                                    ],
-                                    factor=0.35,
-                                ),
+                                color=mean_color,
                                 width=1,
                                 dash="longdash",
                             ),
@@ -557,7 +892,6 @@ def make_psd_plot(
         reference_breaks.append(62.5)
 
     if x_axis == "phi":
-        import numpy as np
 
         reference_breaks = [
             -np.log2(x / 1000)
