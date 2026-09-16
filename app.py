@@ -147,8 +147,21 @@ group_by_options.extend(
     ]
 )
 
-mmes_ids = set(
-    mmes_df["Sample_Name_Final"].astype(str)
+primary_mmes_ids = set(
+    mmes_df[
+        "Sample_Name_Final"
+    ].astype(str)
+)
+
+rs_mmes_ids = set(
+    mmes_rs_df[
+        "Sample_Name_Final"
+    ].astype(str)
+)
+
+mmes_ids = (
+    primary_mmes_ids
+    | rs_mmes_ids
 )
 
 matched_count = (
@@ -158,11 +171,51 @@ matched_count = (
     .sum()
 )
 
-print(f"GSA samples: {len(gsa_df)}")
-print(f"MMES samples: {len(mmes_df)}")
-print(f"Matched samples: {matched_count}")
-print(gsa_df["GSA_ID"].duplicated().sum())
-print(mmes_df["Sample_Name_Final"].duplicated().sum())
+print(
+    f"GSA samples: "
+    f"{len(gsa_df)}"
+)
+
+print(
+    f"MMES PRIMARY samples: "
+    f"{len(mmes_df)}"
+)
+
+print(
+    f"MMES RS samples: "
+    f"{len(mmes_rs_df)}"
+)
+
+print(
+    f"MMES unique samples: "
+    f"{len(mmes_ids)}"
+)
+
+print(
+    f"Matched samples: "
+    f"{matched_count}"
+)
+
+print(
+    "Duplicate GSA IDs:",
+    gsa_df[
+        "GSA_ID"
+    ].duplicated().sum(),
+)
+
+print(
+    "Duplicate PRIMARY MMES IDs:",
+    mmes_df[
+        "Sample_Name_Final"
+    ].duplicated().sum(),
+)
+
+print(
+    "Duplicate RS MMES IDs:",
+    mmes_rs_df[
+        "Sample_Name_Final"
+    ].duplicated().sum(),
+)
 
 app = Dash(__name__)
 app.title = "MGS_GSA_Plotter"
@@ -295,7 +348,7 @@ app.layout = html.Div(
             [
                 create_globalselection(
                     len(gsa_df),
-                    len(mmes_df),
+                    len(mmes_ids),
                     matched_count,
                     analysis_methods,
                     formations,
@@ -4389,6 +4442,7 @@ def export_csv(
 
         df = get_psd_export_df(
             mmes_df,
+            mmes_rs_df,
             panel_samples,
         )
 
@@ -4398,6 +4452,7 @@ def export_csv(
 
         df = get_frequency_export_df(
             mmes_df,
+            mmes_rs_df,
             panel_samples,
         )
 

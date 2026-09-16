@@ -1,6 +1,14 @@
+import pandas as pd
+
 from logic.custom_groups import (
     build_custom_groups,
     has_custom_groups,
+)
+
+from logic.mmes_helpers import (
+    get_sample_mmes_row,
+    get_psd_columns,
+    get_fr_columns,
 )
 
 
@@ -9,31 +17,141 @@ def get_psd_export_df(
         mmes_rs_df,
         selected_samples,
 ):
-    psd_cols = sorted(
-        [
-            c for c in mmes_df.columns
-            if c.startswith("PSD_")
-        ],
-        key=lambda x: float(
-            x.replace("PSD_", "").replace("_", ".")
+
+    selected_samples = selected_samples or []
+
+    # -------------------------------------------------
+    # Get native PSD columns for each MMES source
+    # -------------------------------------------------
+
+    primary_cols, primary_x = get_psd_columns(
+        "PRIMARY",
+        mmes_df,
+        mmes_rs_df,
+    )
+
+    rs_cols, rs_x = get_psd_columns(
+        "RS",
+        mmes_df,
+        mmes_rs_df,
+    )
+
+    # -------------------------------------------------
+    # Build one combined column order.
+    #
+    # PRIMARY and RS use different native bins, so
+    # preserve all native fields and sort them by
+    # grain size.
+    # -------------------------------------------------
+
+    curve_fields = []
+
+    for col, x in zip(
+            primary_cols,
+            primary_x,
+    ):
+        curve_fields.append(
+            (float(x), col)
+        )
+
+    for col, x in zip(
+            rs_cols,
+            rs_x,
+    ):
+        curve_fields.append(
+            (float(x), col)
+        )
+
+    curve_fields.sort(
+        key=lambda item: (
+            item[0],
+            item[1],
         )
     )
 
-    export_cols = [
-                      "Sample_Name_Final",
-                  ] + psd_cols
+    psd_cols = []
 
-    subset = mmes_df[
-        mmes_df["Sample_Name_Final"]
-        .astype(str)
-        .isin(selected_samples)
-    ][export_cols].copy()
+    for _, col in curve_fields:
 
-    subset = subset.rename(
-        columns={
-            "Sample_Name_Final": "GSA_ID"
+        if col not in psd_cols:
+            psd_cols.append(col)
+
+    # -------------------------------------------------
+    # Build export rows using the same source lookup
+    # used by the PSD plot.
+    #
+    # This preserves PRIMARY-first lookup behavior if
+    # a sample name happens to exist in both sources.
+    # -------------------------------------------------
+
+    records = []
+
+    for sample in selected_samples:
+
+        (
+            row,
+            source,
+        ) = get_sample_mmes_row(
+            sample,
+            mmes_df,
+            mmes_rs_df,
+        )
+
+        if row is None:
+            continue
+
+        if source == "PRIMARY":
+
+            source_cols = primary_cols
+
+        elif source == "RS":
+
+            source_cols = rs_cols
+
+        else:
+            continue
+
+        record = {
+            "GSA_ID": str(sample),
         }
+
+        for col in source_cols:
+
+            record[col] = row[col]
+
+        records.append(record)
+
+    # -------------------------------------------------
+    # Create dataframe.
+    #
+    # Columns belonging to the other MMES source will
+    # naturally remain blank/NaN for that sample.
+    # -------------------------------------------------
+
+    if not records:
+
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+                *psd_cols,
+            ]
+        )
+
+    subset = pd.DataFrame(
+        records
     )
+
+    for col in psd_cols:
+
+        if col not in subset.columns:
+            subset[col] = pd.NA
+
+    subset = subset[
+        [
+            "GSA_ID",
+            *psd_cols,
+        ]
+    ]
 
     return subset
 
@@ -43,31 +161,137 @@ def get_frequency_export_df(
         mmes_rs_df,
         selected_samples,
 ):
-    fr_cols = sorted(
-        [
-            c for c in mmes_df.columns
-            if c.startswith("FR_")
-        ],
-        key=lambda x: float(
-            x.replace("FR_", "").replace("_", ".")
+
+    selected_samples = selected_samples or []
+
+    # -------------------------------------------------
+    # Get native frequency columns for each MMES source
+    # -------------------------------------------------
+
+    primary_cols, primary_x = get_fr_columns(
+        "PRIMARY",
+        mmes_df,
+        mmes_rs_df,
+    )
+
+    rs_cols, rs_x = get_fr_columns(
+        "RS",
+        mmes_df,
+        mmes_rs_df,
+    )
+
+    # -------------------------------------------------
+    # Build one combined column order.
+    #
+    # Preserve both native bin schemes and sort fields
+    # by grain size.
+    # -------------------------------------------------
+
+    curve_fields = []
+
+    for col, x in zip(
+            primary_cols,
+            primary_x,
+    ):
+        curve_fields.append(
+            (float(x), col)
+        )
+
+    for col, x in zip(
+            rs_cols,
+            rs_x,
+    ):
+        curve_fields.append(
+            (float(x), col)
+        )
+
+    curve_fields.sort(
+        key=lambda item: (
+            item[0],
+            item[1],
         )
     )
 
-    export_cols = [
-                      "Sample_Name_Final",
-                  ] + fr_cols
+    fr_cols = []
 
-    subset = mmes_df[
-        mmes_df["Sample_Name_Final"]
-        .astype(str)
-        .isin(selected_samples)
-    ][export_cols].copy()
+    for _, col in curve_fields:
 
-    subset = subset.rename(
-        columns={
-            "Sample_Name_Final": "GSA_ID",
+        if col not in fr_cols:
+            fr_cols.append(col)
+
+    # -------------------------------------------------
+    # Build export rows using the same source lookup
+    # used by the Frequency plot.
+    # -------------------------------------------------
+
+    records = []
+
+    for sample in selected_samples:
+
+        (
+            row,
+            source,
+        ) = get_sample_mmes_row(
+            sample,
+            mmes_df,
+            mmes_rs_df,
+        )
+
+        if row is None:
+            continue
+
+        if source == "PRIMARY":
+
+            source_cols = primary_cols
+
+        elif source == "RS":
+
+            source_cols = rs_cols
+
+        else:
+            continue
+
+        record = {
+            "GSA_ID": str(sample),
         }
+
+        for col in source_cols:
+
+            record[col] = row[col]
+
+        records.append(record)
+
+    # -------------------------------------------------
+    # Create dataframe.
+    #
+    # Native bins from the other source remain blank
+    # for each sample.
+    # -------------------------------------------------
+
+    if not records:
+
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+                *fr_cols,
+            ]
+        )
+
+    subset = pd.DataFrame(
+        records
     )
+
+    for col in fr_cols:
+
+        if col not in subset.columns:
+            subset[col] = pd.NA
+
+    subset = subset[
+        [
+            "GSA_ID",
+            *fr_cols,
+        ]
+    ]
 
     return subset
 
@@ -352,7 +576,10 @@ def add_export_metadata(
     # Top-level grouping
     #
 
-    elif panel.get("group_by"):
+    elif (
+            panel.get("group_by")
+            and panel.get("group_by") != "None"
+    ):
 
         field = panel["group_by"]
 
