@@ -73,6 +73,10 @@ from logic.custom_groups import (
     has_custom_groups,
 )
 
+from logic.text_normalization import (
+    normalize_identifier_list,
+)
+
 from dash.exceptions import PreventUpdate
 
 from dash_rgl import RGLLayout
@@ -624,9 +628,11 @@ def apply_loaded_state(
             [],
         ),
 
-        state.get(
-            "global_samples",
-            [],
+        normalize_identifier_list(
+            state.get(
+                "global_samples",
+                [],
+            )
         ),
 
         state.get(

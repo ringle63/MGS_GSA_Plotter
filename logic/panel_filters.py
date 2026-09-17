@@ -2,6 +2,10 @@ from logic.filters import (
     apply_filters,
 )
 
+from logic.text_normalization import (
+    normalize_identifier_list,
+)
+
 
 def apply_panel_filters(
         panel,
@@ -27,7 +31,9 @@ def get_panel_samples(
         gsa_df,
 ):
     if panel["use_global"]:
-        return global_samples or []
+        return normalize_identifier_list(
+            global_samples
+        )
 
     filtered = apply_panel_filters(
         panel,

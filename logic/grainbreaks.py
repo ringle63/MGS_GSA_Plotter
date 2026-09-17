@@ -1,3 +1,8 @@
+from logic.text_normalization import (
+    standardize_category_text,
+)
+
+
 def get_grain_fractions(
         sample_row,
         mmes_row,
@@ -14,7 +19,13 @@ def get_grain_fractions(
     }
     """
 
-    method = sample_row["analysis_method"]
+    method = (
+        standardize_category_text(
+            sample_row[
+                "analysis_method"
+            ]
+        )
+    )
 
     if method == "Mastersizer":
 
@@ -127,7 +138,13 @@ def get_grain_log_classes(
         mmes_row,
         settings,
 ):
-    method = sample_row["analysis_method"]
+    method = (
+        standardize_category_text(
+            sample_row[
+                "analysis_method"
+            ]
+        )
+    )
 
     gravel_settings = settings.get(
         "GravelSettings",

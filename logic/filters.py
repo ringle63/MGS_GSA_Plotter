@@ -1,5 +1,9 @@
 import pandas as pd
 
+from logic.text_normalization import (
+    normalize_text_key,
+)
+
 NULL_VALUE = "<null>"
 
 FILTER_FIELDS = {
@@ -69,6 +73,47 @@ NUMERIC_FIELDS = {
 }
 
 
+def _normalized_text_series(
+        series,
+):
+    """
+    Case/whitespace-insensitive comparison representation.
+    """
+
+    return series.map(
+        normalize_text_key
+    )
+
+
+def _normalized_filter_values(
+        value,
+):
+    """
+    Normalize one or many categorical filter values.
+    """
+
+    values = (
+        value
+        if isinstance(
+            value,
+            list,
+        )
+        else [
+            value
+        ]
+    )
+
+    return [
+        normalize_text_key(
+            item
+        )
+        for item
+        in values
+        if item
+        != NULL_VALUE
+    ]
+
+
 def apply_filters(
         df,
         filters,
@@ -80,9 +125,18 @@ def apply_filters(
 
     for clause in filters:
 
-        field = clause.get("field")
-        operator = clause.get("operator")
-        value = clause.get("value")
+        field = clause.get(
+            "field"
+        )
+
+        operator = clause.get(
+            "operator"
+        )
+
+        value = clause.get(
+            "value"
+        )
+
         logic = clause.get(
             "logic",
             "AND",
@@ -90,155 +144,261 @@ def apply_filters(
 
         if (
                 not field
-                or value in [
-            None,
-            [],
-            "",
-        ]
+                or field
+                not in df.columns
+                or value
+                in [
+                    None,
+                    [],
+                    "",
+                ]
         ):
             continue
 
-        if field in NUMERIC_FIELDS:
+        is_numeric = (
+            field
+            in NUMERIC_FIELDS
+        )
+
+        if is_numeric:
 
             series = pd.to_numeric(
-                df[field],
+                df[
+                    field
+                ],
                 errors="coerce",
             )
 
+            normalized_series = None
+
         else:
 
-            series = df[field]
+            series = df[
+                field
+            ]
+
+            normalized_series = (
+                _normalized_text_series(
+                    series
+                )
+            )
 
         if operator == "IN":
 
-            contains_null = (
-                NULL_VALUE in value
-                if isinstance(value, list)
-                else False
+            raw_values = (
+                value
+                if isinstance(
+                    value,
+                    list,
+                )
+                else [
+                    value
+                ]
             )
 
-            values = [
-                v
-                for v in value
-                if v != NULL_VALUE
-            ]
+            contains_null = (
+                NULL_VALUE
+                in raw_values
+            )
 
-            mask = series.astype(str).isin(values)
+            values = (
+                _normalized_filter_values(
+                    raw_values
+                )
+            )
+
+            mask = (
+                normalized_series
+                .isin(
+                    values
+                )
+            )
 
             if contains_null:
-                mask |= series.isna()
+
+                mask |= (
+                    series.isna()
+                )
 
         elif operator == "NOT IN":
 
-            contains_null = (
-                NULL_VALUE in value
-                if isinstance(value, list)
-                else False
+            raw_values = (
+                value
+                if isinstance(
+                    value,
+                    list,
+                )
+                else [
+                    value
+                ]
             )
 
-            values = [
-                v
-                for v in value
-                if v != NULL_VALUE
-            ]
+            contains_null = (
+                NULL_VALUE
+                in raw_values
+            )
 
-            mask = ~series.astype(str).isin(values)
+            values = (
+                _normalized_filter_values(
+                    raw_values
+                )
+            )
+
+            mask = ~(
+                normalized_series
+                .isin(
+                    values
+                )
+            )
 
             if contains_null:
-                mask &= ~series.isna()
+
+                mask &= ~(
+                    series.isna()
+                )
 
         elif operator == "CONTAINS":
 
-            search = str(value).lower()
+            search = (
+                normalize_text_key(
+                    value
+                )
+                or ""
+            )
 
             mask = (
-                series
-                .astype(str)
-                .str.lower()
+                normalized_series
+                .fillna(
+                    ""
+                )
                 .str.contains(
                     search,
+                    case=True,
+                    regex=False,
                     na=False,
                 )
             )
+
         elif operator == "=":
 
-            if field in NUMERIC_FIELDS:
+            if is_numeric:
+
                 mask = (
-                        series
-                        == float(value)
+                    series
+                    == float(
+                        value
+                    )
                 )
+
             else:
+
                 mask = (
-                        series.astype(str)
-                        == str(value)
+                    normalized_series
+                    == normalize_text_key(
+                        value
+                    )
                 )
 
         elif operator == "!=":
 
-            if field in NUMERIC_FIELDS:
+            if is_numeric:
+
                 mask = (
-                        series
-                        != float(value)
+                    series
+                    != float(
+                        value
+                    )
                 )
+
             else:
+
                 mask = (
-                        series.astype(str)
-                        != str(value)
+                    normalized_series
+                    != normalize_text_key(
+                        value
+                    )
                 )
 
         elif operator == "<":
+
             mask = (
-                    series
-                    < float(value)
+                series
+                < float(
+                    value
+                )
             )
 
         elif operator == "<=":
+
             mask = (
-                    series
-                    <= float(value)
+                series
+                <= float(
+                    value
+                )
             )
 
         elif operator == ">":
+
             mask = (
-                    series
-                    > float(value)
+                series
+                > float(
+                    value
+                )
             )
 
         elif operator == ">=":
+
             mask = (
-                    series
-                    >= float(value)
+                series
+                >= float(
+                    value
+                )
             )
 
         elif operator == "BETWEEN":
 
             minimum = float(
-                value[0]
+                value[
+                    0
+                ]
             )
 
             maximum = float(
-                value[1]
+                value[
+                    1
+                ]
             )
 
             mask = (
-                    (series >= minimum)
-                    &
-                    (series <= maximum)
+                (
+                    series
+                    >= minimum
+                )
+                &
+                (
+                    series
+                    <= maximum
+                )
             )
 
         else:
+
             continue
 
         if combined_mask is None:
+
             combined_mask = mask
 
         elif logic == "OR":
+
             combined_mask |= mask
 
         else:
+
             combined_mask &= mask
 
     if combined_mask is None:
+
         return df.copy()
 
     return df.loc[
