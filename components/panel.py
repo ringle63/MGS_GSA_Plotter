@@ -42,6 +42,11 @@ def create_panel(
         False
     )
 
+    panel.setdefault(
+        "pca_vertical_x_field",
+        "BoreholeID",
+    )
+
     graph_style = {
         "display": "flex",
         "flexDirection": "column",
@@ -1585,7 +1590,49 @@ def create_panel(
                                             html.Br(),
 
                                             html.Label(
-                                                "Borehole Vertical Axis"
+                                                "Vertical Plot X Axis"
+                                            ),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type":
+                                                        "pca-vertical-x-field",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=(
+                                                    [
+                                                        {
+                                                            "label":
+                                                                "Borehole ID",
+                                                            "value":
+                                                                "BoreholeID",
+                                                        }
+                                                    ]
+                                                    + [
+                                                        {
+                                                            "label": label,
+                                                            "value": field,
+                                                        }
+                                                        for field, label
+                                                        in GROUP_BY_FIELDS.items()
+                                                        if field != "BoreholeID"
+                                                    ]
+                                                ),
+
+                                                value=panel.get(
+                                                    "pca_vertical_x_field",
+                                                    "BoreholeID",
+                                                ),
+
+                                                clearable=False,
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Vertical Axis"
                                             ),
 
                                             dcc.RadioItems(

@@ -329,6 +329,8 @@ app.layout = html.Div(
                         "cluster_summary",
                     ],
                     "borehole_vertical_axis": "depth",
+            "pca_vertical_x_field": "BoreholeID",
+                    "pca_vertical_x_field": "BoreholeID",
                     "hierarchy_summary_stats": [
                         "n",
                         "median",
@@ -3203,6 +3205,16 @@ def update_psd_settings(
         Input(
             {
                 "type":
+                    "pca-vertical-x-field",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
                     "borehole-vertical-axis",
                 "index":
                     ALL,
@@ -3248,6 +3260,7 @@ def update_multivariate_settings(
         color_modes,
         loading_arrow_values,
         report_section_values,
+        vertical_x_field_values,
         borehole_vertical_axis_values,
         hierarchy_summary_stats_values,
         hierarchy_summary_variable_values,
@@ -3267,6 +3280,7 @@ def update_multivariate_settings(
             == len(color_modes)
             == len(loading_arrow_values)
             == len(report_section_values)
+            == len(vertical_x_field_values)
             == len(borehole_vertical_axis_values)
             == len(hierarchy_summary_stats_values)
             == len(hierarchy_summary_variable_values)
@@ -3344,6 +3358,13 @@ def update_multivariate_settings(
         ] = (
                 report_section_values[i]
                 or []
+        )
+
+        panel[
+            "pca_vertical_x_field"
+        ] = (
+                vertical_x_field_values[i]
+                or "BoreholeID"
         )
 
         panel[

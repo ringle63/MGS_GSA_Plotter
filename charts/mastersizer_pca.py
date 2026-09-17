@@ -1295,6 +1295,11 @@ def make_mastersizer_pca_plot(
         "depth",
     )
 
+    vertical_x_field = panel.get(
+        "pca_vertical_x_field",
+        "BoreholeID",
+    )
+
     hierarchy_summary_stats = panel.get(
         "hierarchy_summary_stats",
         [
@@ -2291,11 +2296,17 @@ def make_mastersizer_pca_plot(
         depth_result = (
             _get_borehole_data(
                 gsa_df,
-                cluster_result[
-                    "clusters"
+                scores[
+                    [
+                        "GSA_ID",
+                        "Cluster",
+                        "_group",
+                    ]
                 ],
                 vertical_axis=
                     borehole_vertical_axis,
+                x_field=
+                    vertical_x_field,
             )
         )
 
@@ -2312,6 +2323,8 @@ def make_mastersizer_pca_plot(
                         "data"
                     ],
                     cluster_palette,
+                    display_group_colors,
+                    color_mode,
                     depth_result[
                         "vertical_field"
                     ],
@@ -2321,6 +2334,16 @@ def make_mastersizer_pca_plot(
                     depth_result[
                         "reverse_y"
                     ],
+                    x_field=
+                        depth_result[
+                            "x_field"
+                        ],
+                    x_label=
+                        depth_result[
+                            "x_label"
+                        ],
+                    show_legend=
+                        show_legend,
                 )
             )
 
@@ -2423,9 +2446,10 @@ def make_mastersizer_pca_plot(
         dashboard_children.append(
             _card(
                 (
-                    "Cluster by Borehole — "
+                    "Cluster by "
+                    f"{depth_result['x_label']} — "
                     f"{depth_result['vertical_label']} "
-                    "(up to 20 boreholes; ≥5 samples)"
+                    "(up to 50 categories; ≥5 samples)"
                 ),
                 depth_child,
             )

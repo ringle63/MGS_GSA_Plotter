@@ -11,7 +11,10 @@ from dash import (
     dash_table,
 )
 
-from logic.filters import NULL_VALUE
+from logic.filters import (
+    NULL_VALUE,
+    GROUP_BY_FIELDS,
+)
 from logic.groupcolors import build_group_colors
 from logic.grainbreaks import get_grain_log_classes
 from logic.multivariate import (
@@ -126,79 +129,79 @@ def _borehole_sort_key(
     """
     Natural alphanumeric sort for BoreholeID.
 
-    The key ignores punctuation/separator differences entirely,
-    including non-standard Unicode dash characters. Letter and
-    numeric runs are compared in sequence, and numeric runs are
-    compared as integers.
-
-    Examples
-    --------
-    ALL-03-01
-    ALL-03-02
-    ALL-04-01
-    ALL-04-02
-    ALL-05-01
-    ALL-05-02
-    ...
-    KEN-25-02
-    KEN-25-02A
-    KEN-25-02B
-    KEN-25-10
+    Sorting proceeds segment-by-segment across hyphens, with
+    numeric portions compared numerically and letter portions
+    compared case-insensitively. Letter suffixes are preserved
+    as the final sort component.
     """
 
     text = str(
         borehole_id
     ).strip().upper()
 
-    # Ignore all separators/punctuation. This makes ASCII hyphen,
-    # en dash, em dash, non-breaking hyphen, stray spaces, etc.
-    # irrelevant to ordering.
-    tokens = re.findall(
-        r"[A-Z]+|\d+",
+    segments = re.split(
+        r"-+",
         text,
     )
 
     key = []
 
-    for token in tokens:
+    for segment in segments:
 
-        if token.isdigit():
+        tokens = re.findall(
+            r"\d+|[A-Z]+|[^A-Z0-9]+",
+            segment,
+        )
 
-            key.append(
-                (
-                    0,
-                    int(
-                        token
-                    ),
+        segment_key = []
+
+        for token in tokens:
+
+            if token.isdigit():
+
+                segment_key.append(
+                    (
+                        0,
+                        int(
+                            token
+                        ),
+                    )
                 )
-            )
 
-        else:
+            else:
 
-            key.append(
-                (
-                    1,
-                    token,
+                segment_key.append(
+                    (
+                        1,
+                        token,
+                    )
                 )
+
+        key.append(
+            tuple(
+                segment_key
             )
+        )
 
     return tuple(
         key
     )
 
 
-
 def _get_borehole_data(
         gsa_df,
         cluster_df,
         vertical_axis="depth",
+        x_field="BoreholeID",
 ):
     """
-    Build cluster-by-borehole interpretation data.
+    Build vertical cluster-interpretation data for a selectable
+    categorical x-axis and either depth or sample elevation.
 
-    vertical_axis:
-      "depth"     -> depth_ft, plotted increasing downward
-      "elevation" -> sample_elevation, plotted normally
+    x_field:
+        Any categorical GSA field present in gsa_df.
+        BoreholeID uses natural alphanumeric ordering.
+        Other fields use case-insensitive alphabetical ordering.
     """
 
     if vertical_axis == "elevation":
@@ -225,13 +228,14 @@ def _get_borehole_data(
 
         reverse_y = True
 
-    if "BoreholeID" not in gsa_df.columns:
+    if x_field not in gsa_df.columns:
+
         return {
             "data":
                 pd.DataFrame(),
 
             "message":
-                "BoreholeID is unavailable.",
+                f"{x_field} is unavailable.",
 
             "vertical_field":
                 vertical_field,
@@ -241,9 +245,16 @@ def _get_borehole_data(
 
             "reverse_y":
                 reverse_y,
+
+            "x_field":
+                x_field,
+
+            "x_label":
+                x_field,
         }
 
     if vertical_field not in gsa_df.columns:
+
         return {
             "data":
                 pd.DataFrame(),
@@ -262,13 +273,19 @@ def _get_borehole_data(
 
             "reverse_y":
                 reverse_y,
+
+            "x_field":
+                x_field,
+
+            "x_label":
+                x_field,
         }
 
     subset = (
         gsa_df[
             [
                 "GSA_ID",
-                "BoreholeID",
+                x_field,
                 vertical_field,
             ]
         ]
@@ -298,7 +315,7 @@ def _get_borehole_data(
         )
         .dropna(
             subset=[
-                "BoreholeID",
+                x_field,
                 vertical_field,
                 "Cluster",
             ]
@@ -306,6 +323,7 @@ def _get_borehole_data(
     )
 
     if subset.empty:
+
         return {
             "data":
                 pd.DataFrame(),
@@ -314,7 +332,7 @@ def _get_borehole_data(
                 (
                     f"No analyzed samples contain "
                     f"{vertical_label.lower()} and "
-                    "BoreholeID."
+                    f"{x_field}."
                 ),
 
             "vertical_field":
@@ -325,30 +343,43 @@ def _get_borehole_data(
 
             "reverse_y":
                 reverse_y,
+
+            "x_field":
+                x_field,
+
+            "x_label":
+                x_field,
         }
 
-    subset["BoreholeID"] = (
-        subset["BoreholeID"]
+    subset[
+        x_field
+    ] = (
+        subset[
+            x_field
+        ]
         .astype(str)
     )
 
     counts = (
-        subset["BoreholeID"]
+        subset[
+            x_field
+        ]
         .value_counts()
     )
 
     eligible = counts[
         counts >= 5
-        ]
+    ]
 
     if eligible.empty:
+
         return {
             "data":
                 pd.DataFrame(),
 
             "message":
                 (
-                    "No boreholes contain at least "
+                    f"No {x_field} categories contain at least "
                     "5 analyzed samples."
                 ),
 
@@ -360,34 +391,60 @@ def _get_borehole_data(
 
             "reverse_y":
                 reverse_y,
+
+            "x_field":
+                x_field,
+
+            "x_label":
+                x_field,
         }
 
-    # Retain the 50 eligible boreholes with the largest
-    # analyzed-sample counts, then display those boreholes in
-    # natural alphanumeric BoreholeID order.
-    keep_boreholes = (
+    # Retain the 50 eligible categories with the largest analyzed
+    # sample counts, then display them in an intuitive order.
+    keep_categories = (
         eligible
         .head(50)
         .index
         .tolist()
     )
 
-    keep_boreholes = sorted(
-        keep_boreholes,
-        key=_borehole_sort_key,
-    )
+    if x_field == "BoreholeID":
+
+        keep_categories = sorted(
+            keep_categories,
+            key=_borehole_sort_key,
+        )
+
+    else:
+
+        keep_categories = sorted(
+            keep_categories,
+            key=lambda value:
+                str(
+                    value
+                ).casefold(),
+        )
 
     subset = (
         subset[
-            subset["BoreholeID"]
-            .isin(keep_boreholes)
+            subset[
+                x_field
+            ]
+            .isin(
+                keep_categories
+            )
         ]
-            .copy()
+        .copy()
     )
 
-    subset["BoreholeID"] = pd.Categorical(
-        subset["BoreholeID"],
-        categories=keep_boreholes,
+    subset[
+        x_field
+    ] = pd.Categorical(
+        subset[
+            x_field
+        ],
+        categories=
+            keep_categories,
         ordered=True,
     )
 
@@ -395,9 +452,22 @@ def _get_borehole_data(
         subset
         .sort_values(
             [
-                "BoreholeID",
+                x_field,
                 vertical_field,
             ]
+        )
+    )
+
+    x_label = (
+        "BoreholeID"
+        if x_field == "BoreholeID"
+        else (
+            GROUP_BY_FIELDS.get(
+                x_field,
+                x_field,
+            )
+            if "GROUP_BY_FIELDS" in globals()
+            else x_field
         )
     )
 
@@ -416,7 +486,14 @@ def _get_borehole_data(
 
         "reverse_y":
             reverse_y,
+
+        "x_field":
+            x_field,
+
+        "x_label":
+            x_label,
     }
+
 
 
 def _card(
@@ -3601,166 +3678,287 @@ def _build_hierarchy_panel(
 def _make_borehole_figure(
         borehole_df,
         cluster_palette,
+        display_group_colors,
+        color_mode,
         vertical_field,
         vertical_label,
         reverse_y,
+        x_field="BoreholeID",
+        x_label="BoreholeID",
+        show_legend=True,
 ):
     """
-    Cluster assignments down boreholes using either depth
-    or sample elevation.
+    Borehole cluster view using the same visual encoding as PCA scores.
+
+    Existing grouping:
+        color  = Group By / Custom Group
+        symbol = hierarchical cluster
+
+    Hierarchical cluster grouping:
+        color  = cluster
+        symbol = cluster
     """
 
     fig = go.Figure()
 
-    for cluster in sorted(
-            borehole_df["Cluster"]
-                    .astype(int)
-                    .unique()
-    ):
-        cluster_name = (
-            f"Cluster {cluster}"
+    groups = sorted(
+        borehole_df[
+            "_group"
+        ]
+        .fillna(
+            NULL_VALUE
+        )
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    clusters = sorted(
+        borehole_df[
+            "Cluster"
+        ]
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+
+    for group in groups:
+
+        group_df = borehole_df[
+            borehole_df[
+                "_group"
+            ]
+            .fillna(
+                NULL_VALUE
+            )
+            .astype(str)
+            == str(
+                group
+            )
+        ]
+
+        group_clusters = sorted(
+            group_df[
+                "Cluster"
+            ]
+            .dropna()
+            .astype(int)
+            .unique()
+            .tolist()
         )
 
-        subset = borehole_df[
-            borehole_df["Cluster"]
-            .astype(int)
-            == cluster
+        for cluster in group_clusters:
+
+            subset = group_df[
+                group_df[
+                    "Cluster"
+                ]
+                .astype(int)
+                == int(
+                    cluster
+                )
             ]
 
-        fig.add_trace(
-            go.Scatter(
-                x=subset[
-                    "BoreholeID"
-                ],
-
-                y=subset[
-                    vertical_field
-                ],
-
-                mode=
-                "markers",
-
-                name=
-                cluster_name,
-
-                marker=dict(
-                    size=9,
-
-                    color=(
-                        cluster_palette.get(
-                            cluster_name,
-                            "#777777",
-                        )
-                    ),
-
-                    symbol=_cluster_symbol(
-                        cluster
-                    ),
-
-                    line=dict(
-                        width=0.7,
-                        color="#333333",
-                    ),
-                ),
-
-                customdata=(
-                    subset[
-                        [
-                            "GSA_ID",
-                            "Cluster",
-                        ]
-                    ]
-                    .to_numpy()
-                ),
-
-                hovertemplate=(
-                    "Sample: %{customdata[0]}"
-                    "<br>Borehole: %{x}"
-                    f"<br>{vertical_label}: "
-                    "%{y:.2f}"
-                    "<br>Cluster: %{customdata[1]}"
-                    f"<br>Cluster symbol: "
-                    f"{_cluster_symbol(cluster)}"
-                    "<extra></extra>"
-                ),
+            cluster_name = (
+                f"Cluster {cluster}"
             )
-        )
+
+            if color_mode == "cluster":
+
+                marker_color = (
+                    cluster_palette.get(
+                        cluster_name,
+                        "#777777",
+                    )
+                )
+
+            else:
+
+                marker_color = (
+                    display_group_colors.get(
+                        str(
+                            group
+                        ),
+                        "#777777",
+                    )
+                )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=subset[
+                        x_field
+                    ],
+
+                    y=subset[
+                        vertical_field
+                    ],
+
+                    mode="markers",
+
+                    name=(
+                        f"{group} — "
+                        f"{cluster_name}"
+                    ),
+
+                    showlegend=False,
+
+                    marker=dict(
+                        size=9,
+
+                        color=marker_color,
+
+                        symbol=
+                            _cluster_symbol(
+                                cluster
+                            ),
+
+                        line=dict(
+                            width=0.7,
+                            color="#333333",
+                        ),
+                    ),
+
+                    customdata=(
+                        subset[
+                            [
+                                "GSA_ID",
+                                "_group",
+                                "Cluster",
+                            ]
+                        ]
+                        .to_numpy()
+                    ),
+
+                    hovertemplate=(
+                        "Sample: %{customdata[0]}"
+                        "<br>Group/Color: %{customdata[1]}"
+                        f"<br>{x_label}: %{{x}}"
+                        f"<br>{vertical_label}: "
+                        "%{y:.2f}"
+                        "<br>Cluster: %{customdata[2]}"
+                        f"<br>Cluster symbol: "
+                        f"{_cluster_symbol(cluster)}"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+    _add_pca_legends(
+        fig,
+        groups,
+        (
+            cluster_palette
+            if color_mode == "cluster"
+            else display_group_colors
+        ),
+        clusters,
+        color_mode,
+        show_legend,
+    )
 
     fig.update_layout(
         autosize=True,
 
         margin=dict(
             l=75,
-            r=30,
+            r=330
+            if show_legend
+            else 30,
             t=20,
             b=110,
         ),
 
         legend=dict(
-            orientation="h",
+            orientation="v",
+            x=1.01,
+            y=1.0,
+            xanchor="left",
+            yanchor="top",
+            tracegroupgap=6,
+            font=dict(
+                size=11,
+            ),
+        ),
 
-            x=0.5,
-            y=1.05,
-
-            xanchor=
-            "center",
+        legend2=dict(
+            orientation="v",
+            x=1.18,
+            y=1.0,
+            xanchor="left",
+            yanchor="top",
+            tracegroupgap=6,
+            font=dict(
+                size=11,
+            ),
         ),
     )
 
-    # Preserve the exact BoreholeID order established upstream.
-    # Without categoryarray, Plotly rebuilds category order from
-    # the order values first appear across the separate cluster
-    # traces, which can scramble an otherwise correctly sorted
-    # dataframe.
     if (
             str(
                 borehole_df[
-                    "BoreholeID"
+                    x_field
                 ].dtype
             )
             == "category"
     ):
 
-        present_boreholes = set(
+        present_categories = set(
             borehole_df[
-                "BoreholeID"
+                x_field
             ]
             .astype(str)
             .tolist()
         )
 
-        borehole_order = [
+        x_order = [
             str(
                 value
             )
             for value
             in borehole_df[
-                "BoreholeID"
+                x_field
             ].cat.categories
             if str(
                 value
             )
-            in present_boreholes
+            in present_categories
         ]
 
     else:
 
-        borehole_order = sorted(
+        x_order = (
             borehole_df[
-                "BoreholeID"
+                x_field
             ]
             .dropna()
             .astype(str)
             .unique()
-            .tolist(),
-            key=_borehole_sort_key,
+            .tolist()
         )
 
+        if x_field == "BoreholeID":
+
+            x_order = sorted(
+                x_order,
+                key=_borehole_sort_key,
+            )
+
+        else:
+
+            x_order = sorted(
+                x_order,
+                key=lambda value:
+                    str(
+                        value
+                    ).casefold(),
+            )
+
     fig.update_xaxes(
-        title="BoreholeID",
+        title=x_label,
 
         categoryorder="array",
-        categoryarray=borehole_order,
+        categoryarray=x_order,
 
         tickangle=-45,
 
@@ -3780,6 +3978,7 @@ def _make_borehole_figure(
     )
 
     return fig
+
 
 
 def make_pca_plot(
@@ -3858,6 +4057,11 @@ def make_pca_plot(
     borehole_vertical_axis = panel.get(
         "borehole_vertical_axis",
         "depth",
+    )
+
+    vertical_x_field = panel.get(
+        "pca_vertical_x_field",
+        "BoreholeID",
     )
 
     hierarchy_summary_stats = panel.get(
@@ -4698,11 +4902,17 @@ def make_pca_plot(
 
         depth_result = _get_borehole_data(
             gsa_df,
-            cluster_result[
-                "clusters"
+            scores[
+                [
+                    "GSA_ID",
+                    "Cluster",
+                    "_group",
+                ]
             ],
             vertical_axis=
             borehole_vertical_axis,
+            x_field=
+            vertical_x_field,
         )
 
         if (
@@ -4718,6 +4928,8 @@ def make_pca_plot(
                         "data"
                     ],
                     cluster_palette,
+                    display_group_colors,
+                    color_mode,
                     depth_result[
                         "vertical_field"
                     ],
@@ -4727,6 +4939,16 @@ def make_pca_plot(
                     depth_result[
                         "reverse_y"
                     ],
+                    x_field=
+                        depth_result[
+                            "x_field"
+                        ],
+                    x_label=
+                        depth_result[
+                            "x_label"
+                        ],
+                    show_legend=
+                        show_legend,
                 )
             )
 
@@ -4834,9 +5056,10 @@ def make_pca_plot(
         dashboard_children.append(
             _card(
                 (
-                    "Cluster by Borehole — "
+                    "Cluster by "
+                    f"{depth_result['x_label']} — "
                     f"{depth_result['vertical_label']} "
-                    "(up to 50 boreholes; ≥5 samples)"
+                    "(up to 50 categories; ≥5 samples)"
                 ),
 
                 depth_child,
