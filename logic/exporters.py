@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from logic.custom_groups import (
@@ -14,6 +15,10 @@ from logic.mmes_helpers import (
 from logic.multivariate import (
     calculate_pca,
     calculate_hierarchical,
+)
+
+from logic.mastersizer_multivariate import (
+    prepare_mastersizer_analysis,
 )
 
 
@@ -562,6 +567,198 @@ def get_pca_export_df(
             on="GSA_ID",
             how="left",
         )
+    )
+
+    if cluster_result is not None:
+
+        cluster_column = (
+            f"Cluster_k"
+            f"{cluster_result['selected_k']}"
+        )
+
+        clusters = (
+            cluster_result[
+                "clusters"
+            ]
+            .rename(
+                columns={
+                    "Cluster":
+                        cluster_column
+                }
+            )
+        )
+
+        output = (
+            output
+            .merge(
+                clusters,
+                on="GSA_ID",
+                how="left",
+            )
+        )
+
+    return output
+
+
+
+def get_mastersizer_pca_export_df(
+        gsa_df,
+        mmes_df,
+        mmes_rs_df,
+        selected_samples,
+        panel,
+):
+    """
+    Export Mastersizer-only PCA scores and current-k cluster
+    assignments.
+
+    The raw native PSD/FR exports remain handled by their
+    existing dedicated exporters.
+    """
+
+    input_mode = panel.get(
+        "mastersizer_pca_input",
+        "frequency",
+    )
+
+    prepared_input = (
+        prepare_mastersizer_analysis(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            selected_samples,
+            input_mode=
+                input_mode,
+        )
+    )
+
+    if prepared_input is None:
+
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+            ]
+        )
+
+    analysis_df = (
+        prepared_input[
+            "dataframe"
+        ]
+    )
+
+    variables = (
+        prepared_input[
+            "variables"
+        ]
+    )
+
+    samples = (
+        prepared_input[
+            "samples"
+        ]
+    )
+
+    standardize = (
+        False
+        if input_mode
+        == "frequency"
+        else panel.get(
+            "analysis_standardize",
+            True,
+        )
+    )
+
+    pca_result = calculate_pca(
+        analysis_df,
+        samples,
+        variables,
+        standardize=
+            standardize,
+    )
+
+    if pca_result is None:
+
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+            ]
+        )
+
+    cluster_result = (
+        calculate_hierarchical(
+            analysis_df,
+            samples,
+            variables,
+            standardize=
+                standardize,
+            linkage_method=
+                panel.get(
+                    "cluster_linkage",
+                    "ward",
+                ),
+            distance_metric=
+                panel.get(
+                    "cluster_metric",
+                    "euclidean",
+                ),
+            cluster_k=
+                panel.get(
+                    "cluster_k",
+                    4,
+                ),
+            silhouette_k_min=2,
+            silhouette_k_max=10,
+        )
+    )
+
+    output = (
+        pca_result[
+            "scores"
+        ]
+        .copy()
+    )
+
+    output.insert(
+        1,
+        "Mastersizer_PCA_Input",
+        (
+            "PSD Undersize"
+            if input_mode
+            == "psd"
+            else "Frequency"
+        ),
+    )
+
+    output.insert(
+        2,
+        "Mastersizer_PCA_Bins",
+        len(
+            variables
+        ),
+    )
+
+    output.insert(
+        3,
+        "Mastersizer_PCA_Min_um",
+        float(
+            np.min(
+                prepared_input[
+                    "retained_x"
+                ]
+            )
+        ),
+    )
+
+    output.insert(
+        4,
+        "Mastersizer_PCA_Max_um",
+        float(
+            np.max(
+                prepared_input[
+                    "retained_x"
+                ]
+            )
+        ),
     )
 
     if cluster_result is not None:

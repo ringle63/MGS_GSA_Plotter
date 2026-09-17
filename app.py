@@ -28,6 +28,9 @@ from charts.frequency import make_frequency_plot
 from charts.ternary import make_ternary_plot
 
 from charts.pca import make_pca_plot
+from charts.mastersizer_pca import (
+    make_mastersizer_pca_plot,
+)
 
 from charts.hierarchical import (
     make_hierarchical_plot,
@@ -47,6 +50,7 @@ from logic.exporters import (
     get_ternary_export_df,
     get_grainlog_export_df,
     get_pca_export_df,
+    get_mastersizer_pca_export_df,
     get_hierarchical_export_df,
     add_export_metadata,
 )
@@ -301,6 +305,7 @@ app.layout = html.Div(
 
                     "analysis_variables": [],
                     "analysis_standardize": True,
+                    "mastersizer_pca_input": "frequency",
 
                     "cluster_linkage": "ward",
                     "cluster_metric": "euclidean",
@@ -1470,6 +1475,7 @@ def add_panel(
             "show_covariance": False,
             "analysis_variables": [],
             "analysis_standardize": True,
+            "mastersizer_pca_input": "frequency",
 
             "cluster_linkage": "ward",
             "cluster_metric": "euclidean",
@@ -2741,6 +2747,16 @@ def update_graphs(
                 panel,
             )
 
+        elif chart_type == "PCA - Mastersizer Only":
+
+            fig = make_mastersizer_pca_plot(
+                gsa_df,
+                mmes_df,
+                mmes_rs_df,
+                panel_samples,
+                panel,
+            )
+
         elif (
                 chart_type
                 == "Hierarchical Clustering"
@@ -2806,9 +2822,12 @@ def update_graphs(
                 )
             )
 
-        elif chart_type == "PCA":
+        elif chart_type in [
+            "PCA",
+            "PCA - Mastersizer Only",
+        ]:
 
-            # make_pca_plot() now returns a responsive Dash
+            # PCA report chart types return responsive Dash
             # dashboard component instead of one Plotly figure.
             #
             # Keep the panel viewport scrollable while allowing
@@ -3108,6 +3127,16 @@ def update_psd_settings(
         Input(
             {
                 "type":
+                    "mastersizer-pca-input",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
                     "cluster-linkage",
                 "index":
                     ALL,
@@ -3206,6 +3235,7 @@ def update_psd_settings(
 def update_multivariate_settings(
         variables,
         standardize,
+        mastersizer_pca_inputs,
         linkage_methods,
         distance_metrics,
         cluster_k_values,
@@ -3224,6 +3254,7 @@ def update_multivariate_settings(
             len(panel_data)
             == len(variables)
             == len(standardize)
+            == len(mastersizer_pca_inputs)
             == len(linkage_methods)
             == len(distance_metrics)
             == len(cluster_k_values)
@@ -3255,6 +3286,13 @@ def update_multivariate_settings(
                     standardize[i]
                     or []
                 )
+        )
+
+        panel[
+            "mastersizer_pca_input"
+        ] = (
+                mastersizer_pca_inputs[i]
+                or "frequency"
         )
 
         panel[
@@ -3372,6 +3410,25 @@ def update_chart_types(
         raise PreventUpdate
 
     for panel, chart_type in zip(panel_data, chart_types):
+
+        previous_chart_type = panel.get(
+            "chart_type"
+        )
+
+        # A Mastersizer PCA curve report is not useful when
+        # every curve summary is hidden. Turn the mean on the
+        # first time a panel switches into this chart type.
+        # The user can turn it back off afterward.
+        if (
+                chart_type
+                == "PCA - Mastersizer Only"
+                and previous_chart_type
+                != "PCA - Mastersizer Only"
+        ):
+            panel[
+                "show_mean"
+            ] = True
+
         panel["chart_type"] = chart_type
 
     return panel_data
@@ -3598,6 +3655,7 @@ def toggle_group_by_visibility(
         "Grain Size Log",
         "Ternary",
         "PCA",
+        "PCA - Mastersizer Only",
     ]
 
     if not supports_grouping:
@@ -4887,6 +4945,18 @@ def export_csv(
         )
 
         filename = "PCA.csv"
+
+    elif chart_type == "PCA - Mastersizer Only":
+
+        df = get_mastersizer_pca_export_df(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            panel_samples,
+            panel,
+        )
+
+        filename = "PCA_Mastersizer_Only.csv"
 
     elif (
             chart_type

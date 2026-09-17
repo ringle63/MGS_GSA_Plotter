@@ -460,8 +460,12 @@ def _add_pca_legends(
         show_legend,
 ):
     """
-    Add clean legend keys without creating one legend entry
-    for every Group × Cluster trace.
+    Add clean PCA legend keys without creating one entry for
+    every Group × Cluster trace.
+
+    The legend is split between two independent Plotly legends
+    so long Group By lists remain fully visible without the
+    legend's internal scroll bar.
 
     Existing-group coloring:
       - colored circle legend = group colors
@@ -474,12 +478,43 @@ def _add_pca_legends(
     if not show_legend:
         return
 
+    def _legend_column(index):
+        return (
+            "legend"
+            if index % 2 == 0
+            else "legend2"
+        )
+
     if color_mode == "cluster":
 
-        for cluster in clusters:
+        first_in_column = {
+            "legend": True,
+            "legend2": True,
+        }
+
+        for index, cluster in enumerate(
+                clusters
+        ):
+
             cluster_name = (
                 f"Cluster {cluster}"
             )
+
+            legend_name = (
+                _legend_column(
+                    index
+                )
+            )
+
+            show_title = (
+                first_in_column[
+                    legend_name
+                ]
+            )
+
+            first_in_column[
+                legend_name
+            ] = False
 
             fig.add_trace(
                 go.Scatter(
@@ -490,13 +525,15 @@ def _add_pca_legends(
 
                     name=cluster_name,
 
+                    legend=
+                        legend_name,
+
                     legendgroup=
-                    "cluster_symbols",
+                        "cluster_symbols",
 
                     legendgrouptitle_text=(
                         "Clusters"
-                        if cluster
-                           == clusters[0]
+                        if show_title
                         else None
                     ),
 
@@ -526,13 +563,35 @@ def _add_pca_legends(
 
     else:
 
-        # ----------------------------
-        # Group-color legend
-        # ----------------------------
+        # ----------------------------------------------------
+        # Group-color legend split between two columns.
+        # ----------------------------------------------------
+
+        first_group_in_column = {
+            "legend": True,
+            "legend2": True,
+        }
 
         for index, group in enumerate(
                 groups
         ):
+
+            legend_name = (
+                _legend_column(
+                    index
+                )
+            )
+
+            show_title = (
+                first_group_in_column[
+                    legend_name
+                ]
+            )
+
+            first_group_in_column[
+                legend_name
+            ] = False
+
             fig.add_trace(
                 go.Scatter(
                     x=[None],
@@ -542,12 +601,15 @@ def _add_pca_legends(
 
                     name=str(group),
 
+                    legend=
+                        legend_name,
+
                     legendgroup=
-                    "group_colors",
+                        "group_colors",
 
                     legendgrouptitle_text=(
                         "Group Colors"
-                        if index == 0
+                        if show_title
                         else None
                     ),
 
@@ -572,13 +634,43 @@ def _add_pca_legends(
                 )
             )
 
-        # ----------------------------
-        # Cluster-symbol legend
-        # ----------------------------
+        # ----------------------------------------------------
+        # Cluster-symbol keys are distributed across the same
+        # two legend columns.
+        # ----------------------------------------------------
+
+        first_cluster_in_column = {
+            "legend": True,
+            "legend2": True,
+        }
+
+        # Continue the alternating sequence after the groups so
+        # both columns stay balanced overall.
+        cluster_offset = len(
+            groups
+        )
 
         for index, cluster in enumerate(
                 clusters
         ):
+
+            legend_name = (
+                _legend_column(
+                    cluster_offset
+                    + index
+                )
+            )
+
+            show_title = (
+                first_cluster_in_column[
+                    legend_name
+                ]
+            )
+
+            first_cluster_in_column[
+                legend_name
+            ] = False
+
             fig.add_trace(
                 go.Scatter(
                     x=[None],
@@ -591,12 +683,15 @@ def _add_pca_legends(
                         f"{cluster}"
                     ),
 
+                    legend=
+                        legend_name,
+
                     legendgroup=
-                    "cluster_symbols",
+                        "cluster_symbols",
 
                     legendgrouptitle_text=(
                         "Cluster Symbols"
-                        if index == 0
+                        if show_title
                         else None
                     ),
 
@@ -620,7 +715,6 @@ def _add_pca_legends(
                     showlegend=True,
                 )
             )
-
 
 def _add_loading_arrows(
         fig,
@@ -1031,9 +1125,10 @@ def _make_score_figure(
     fig.update_layout(
         height=520,
 
+        # Reserve space on the right for two legend columns.
         margin=dict(
             l=65,
-            r=30,
+            r=330,
             t=15,
             b=60,
         ),
@@ -1042,19 +1137,35 @@ def _make_score_figure(
         "closest",
 
         legend=dict(
-            orientation=
-            "v",
+            orientation="v",
 
             x=1.01,
             y=1.0,
 
-            xanchor=
-            "left",
+            xanchor="left",
+            yanchor="top",
 
-            yanchor=
-            "top",
+            tracegroupgap=6,
 
-            tracegroupgap=10,
+            font=dict(
+                size=11,
+            ),
+        ),
+
+        legend2=dict(
+            orientation="v",
+
+            x=1.18,
+            y=1.0,
+
+            xanchor="left",
+            yanchor="top",
+
+            tracegroupgap=6,
+
+            font=dict(
+                size=11,
+            ),
         ),
     )
 
@@ -1869,20 +1980,26 @@ def _make_group_cluster_heatmap(
         ]
     )
 
+    # Give every heatmap category a real minimum row height.
+    # More importantly, force Plotly to draw EVERY y-axis tick
+    # instead of automatically skipping labels when many groups
+    # are present.
+    heatmap_row_height = 30
+
     fig.update_layout(
         height=max(
             360,
             150
             + (
-                    34
-                    * len(
-                y_labels
-            )
+                heatmap_row_height
+                * len(
+                    y_labels
+                )
             ),
         ),
 
         margin=dict(
-            l=160,
+            l=220,
             r=80,
             t=20,
             b=70,
@@ -1901,9 +2018,21 @@ def _make_group_cluster_heatmap(
             title="Group",
 
             autorange=
-            "reversed",
+                "reversed",
 
             automargin=True,
+
+            # Explicit array ticks prevent Plotly from
+            # auto-skipping group names.
+            tickmode="array",
+            tickvals=y_labels,
+            ticktext=y_labels,
+
+            tickfont=dict(
+                size=11,
+            ),
+
+            ticks="",
         ),
     )
 
@@ -2009,7 +2138,7 @@ def _build_grain_fraction_dataframe(
       - Include Gravel settings by method
 
     The current PCA display group is carried through in _group.
-    When PCA Point Coloring is "cluster", _group is Cluster N.
+    When PCA Point Grouping is "cluster", _group is Cluster N.
     Otherwise _group is the current Group By / Custom Group.
     """
 
@@ -3729,7 +3858,7 @@ def make_pca_plot(
     )
 
     # --------------------------------------------------------
-    # PCA point coloring
+    # PCA point grouping
     # --------------------------------------------------------
 
     if color_mode == "cluster":
@@ -3952,7 +4081,7 @@ def make_pca_plot(
     # --------------------------------------------------------
     # Current-k membership heatmap / table
     #
-    # The existing PCA Point Coloring toggle controls the
+    # The existing PCA Point Grouping toggle controls the
     # organization:
     #
     #   Group By / Custom Groups -> Group × Cluster heatmap

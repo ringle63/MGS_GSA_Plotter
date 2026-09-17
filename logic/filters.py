@@ -37,14 +37,20 @@ NUMERIC_FIELDS = {
     "Silt2_625": "Silt2_625",
     "Silt_4_625": "Silt_4_625",
     "Silt_8_625": "Silt_8_625",
+    "Silt_8_50": "Silt_8_50",
 
     "Sand625_2000": "Sand625_2000",
+    "Sand_50_2000": "Sand_50_2000",
+
+    "VFSand_50_125": "VFSand_50_125",
 
     "ClayG_0_2": "ClayG_0_2",
     "ClayG_0_4": "ClayG_0_4",
+    "ClayG_0_8": "ClayG_0_8",
 
     "SiltG_2_625": "SiltG_2_625",
     "SiltG_4_625": "SiltG_4_625",
+    "SiltG_8_625": "SiltG_8_625",
 
     "SandG_625_2000": "SandG_625_2000",
     "GravelG_2000_3500": "GravelG_2000_3500",

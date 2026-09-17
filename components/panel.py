@@ -105,13 +105,23 @@ def create_panel(
             chart_type == "PCA"
     )
 
+    is_mastersizer_pca = (
+            chart_type
+            == "PCA - Mastersizer Only"
+    )
+
+    is_pca_report = (
+            is_pca
+            or is_mastersizer_pca
+    )
+
     is_hierarchical = (
             chart_type
             == "Hierarchical Clustering"
     )
 
     is_multivariate = (
-            is_pca
+            is_pca_report
             or is_hierarchical
     )
 
@@ -119,7 +129,7 @@ def create_panel(
             is_psd
             or is_ternary
             or is_grain_log
-            or is_pca
+            or is_pca_report
     )
 
     supports_grain_breaks = (
@@ -335,6 +345,7 @@ def create_panel(
                                     "Ternary",
                                     "Grain Size Log",
                                     "PCA",
+                                    "PCA - Mastersizer Only",
                                     "Sample Information",
                                 ],
                                 value=panel["chart_type"],
@@ -460,6 +471,7 @@ def create_panel(
                                                 if panel["chart_type"] in [
                                                     "PSD Undersize",
                                                     "PSD Frequency",
+                                                    "PCA - Mastersizer Only",
                                                 ]
                                                 else "none"
                                             )
@@ -645,7 +657,10 @@ def create_panel(
                                         style={
                                             "display": (
                                                 "block"
-                                                if is_psd
+                                                if (
+                                                    is_psd
+                                                    or is_mastersizer_pca
+                                                )
                                                 else "none"
                                             )
                                         },
@@ -673,7 +688,10 @@ def create_panel(
                                         style={
                                             "display": (
                                                 "block"
-                                                if is_psd
+                                                if (
+                                                    is_psd
+                                                    or is_mastersizer_pca
+                                                )
                                                 else "none"
                                             )
                                         },
@@ -701,7 +719,10 @@ def create_panel(
                                         style={
                                             "display": (
                                                 "block"
-                                                if is_psd
+                                                if (
+                                                    is_psd
+                                                    or is_mastersizer_pca
+                                                )
                                                 else "none"
                                             )
                                         },
@@ -975,8 +996,86 @@ def create_panel(
                                         [
                                             html.Hr(),
 
+                                            html.Div(
+                                                [
+                                                    html.Label(
+                                                        "Mastersizer PCA Data"
+                                                    ),
+
+                                                    dcc.RadioItems(
+                                                        id={
+                                                            "type":
+                                                                "mastersizer-pca-input",
+                                                            "index":
+                                                                panel["id"],
+                                                        },
+
+                                                        options=[
+                                                            {
+                                                                "label":
+                                                                    " Frequency Bins (FR)",
+                                                                "value":
+                                                                    "frequency",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " PSD Undersize Bins",
+                                                                "value":
+                                                                    "psd",
+                                                            },
+                                                        ],
+
+                                                        value=panel.get(
+                                                            "mastersizer_pca_input",
+                                                            "frequency",
+                                                        ),
+
+                                                        inline=True,
+                                                    ),
+
+                                                    html.Div(
+                                                        (
+                                                            "Frequency mode follows the "
+                                                            "compositional CLR workflow. "
+                                                            "PSD mode uses cumulative "
+                                                            "undersize bins."
+                                                        ),
+
+                                                        style={
+                                                            "fontSize":
+                                                                "0.78rem",
+
+                                                            "color":
+                                                                "#667085",
+
+                                                            "marginTop":
+                                                                "4px",
+                                                        },
+                                                    ),
+
+                                                    html.Br(),
+                                                ],
+
+                                                style={
+                                                    "display":
+                                                        (
+                                                            "block"
+                                                            if is_mastersizer_pca
+                                                            else "none"
+                                                        ),
+                                                },
+                                            ),
+
                                             html.Label(
-                                                "Analysis Variables"
+                                                "Analysis Variables",
+                                                style={
+                                                    "display":
+                                                        (
+                                                            "block"
+                                                            if is_pca
+                                                            else "none"
+                                                        ),
+                                                },
                                             ),
 
                                             dcc.Dropdown(
@@ -1006,6 +1105,15 @@ def create_panel(
                                                 placeholder=(
                                                     "Select 2 or more variables..."
                                                 ),
+
+                                                style={
+                                                    "display":
+                                                        (
+                                                            "block"
+                                                            if is_pca
+                                                            else "none"
+                                                        ),
+                                                },
                                             ),
 
                                             html.Br(),
@@ -1021,7 +1129,12 @@ def create_panel(
                                                 options=[
                                                     {
                                                         "label":
-                                                            " Standardize variables",
+                                                            (
+                                                                " Standardize PSD bins "
+                                                                "(Frequency/CLR ignores this)"
+                                                                if is_mastersizer_pca
+                                                                else " Standardize variables"
+                                                            ),
                                                         "value":
                                                             "standardize",
                                                     }
@@ -1313,7 +1426,7 @@ def create_panel(
                                             html.Br(),
 
                                             html.Label(
-                                                "PCA Point Coloring"
+                                                "PCA Point Grouping"
                                             ),
 
                                             dcc.RadioItems(
@@ -1402,7 +1515,11 @@ def create_panel(
                                                             },
                                                             {
                                                                 "label":
-                                                                    " Grain-Fraction Histograms",
+                                                                    (
+                                                                        " Mastersizer Mean / SD Curves"
+                                                                        if is_mastersizer_pca
+                                                                        else " Grain-Fraction Histograms"
+                                                                    ),
                                                                 "value":
                                                                     "grain_histogram",
                                                             },
@@ -1522,6 +1639,7 @@ def create_panel(
                                             "Ternary",
                                             "Grain Size Log",
                                             "PCA",
+                                            "PCA - Mastersizer Only",
                                             "Hierarchical Clustering",
                                         ]
                                                 and panel.get("graph_options_open", True)
