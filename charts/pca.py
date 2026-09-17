@@ -1,4 +1,5 @@
 import math
+import re
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -117,6 +118,74 @@ def _get_existing_groups(
         )
 
     return scores
+
+
+def _borehole_sort_key(
+        borehole_id,
+):
+    """
+    Natural alphanumeric sort for BoreholeID.
+
+    The key ignores punctuation/separator differences entirely,
+    including non-standard Unicode dash characters. Letter and
+    numeric runs are compared in sequence, and numeric runs are
+    compared as integers.
+
+    Examples
+    --------
+    ALL-03-01
+    ALL-03-02
+    ALL-04-01
+    ALL-04-02
+    ALL-05-01
+    ALL-05-02
+    ...
+    KEN-25-02
+    KEN-25-02A
+    KEN-25-02B
+    KEN-25-10
+    """
+
+    text = str(
+        borehole_id
+    ).strip().upper()
+
+    # Ignore all separators/punctuation. This makes ASCII hyphen,
+    # en dash, em dash, non-breaking hyphen, stray spaces, etc.
+    # irrelevant to ordering.
+    tokens = re.findall(
+        r"[A-Z]+|\d+",
+        text,
+    )
+
+    key = []
+
+    for token in tokens:
+
+        if token.isdigit():
+
+            key.append(
+                (
+                    0,
+                    int(
+                        token
+                    ),
+                )
+            )
+
+        else:
+
+            key.append(
+                (
+                    1,
+                    token,
+                )
+            )
+
+    return tuple(
+        key
+    )
+
 
 
 def _get_borehole_data(
@@ -293,11 +362,19 @@ def _get_borehole_data(
                 reverse_y,
         }
 
+    # Retain the 50 eligible boreholes with the largest
+    # analyzed-sample counts, then display those boreholes in
+    # natural alphanumeric BoreholeID order.
     keep_boreholes = (
         eligible
-        .head(20)
+        .head(50)
         .index
         .tolist()
+    )
+
+    keep_boreholes = sorted(
+        keep_boreholes,
+        key=_borehole_sort_key,
     )
 
     subset = (
@@ -3630,8 +3707,60 @@ def _make_borehole_figure(
         ),
     )
 
+    # Preserve the exact BoreholeID order established upstream.
+    # Without categoryarray, Plotly rebuilds category order from
+    # the order values first appear across the separate cluster
+    # traces, which can scramble an otherwise correctly sorted
+    # dataframe.
+    if (
+            str(
+                borehole_df[
+                    "BoreholeID"
+                ].dtype
+            )
+            == "category"
+    ):
+
+        present_boreholes = set(
+            borehole_df[
+                "BoreholeID"
+            ]
+            .astype(str)
+            .tolist()
+        )
+
+        borehole_order = [
+            str(
+                value
+            )
+            for value
+            in borehole_df[
+                "BoreholeID"
+            ].cat.categories
+            if str(
+                value
+            )
+            in present_boreholes
+        ]
+
+    else:
+
+        borehole_order = sorted(
+            borehole_df[
+                "BoreholeID"
+            ]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist(),
+            key=_borehole_sort_key,
+        )
+
     fig.update_xaxes(
         title="BoreholeID",
+
+        categoryorder="array",
+        categoryarray=borehole_order,
 
         tickangle=-45,
 
@@ -4707,7 +4836,7 @@ def make_pca_plot(
                 (
                     "Cluster by Borehole — "
                     f"{depth_result['vertical_label']} "
-                    "(up to 20 boreholes; ≥5 samples)"
+                    "(up to 50 boreholes; ≥5 samples)"
                 ),
 
                 depth_child,
