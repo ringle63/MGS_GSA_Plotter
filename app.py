@@ -27,6 +27,12 @@ from charts.psd import make_psd_plot
 from charts.frequency import make_frequency_plot
 from charts.ternary import make_ternary_plot
 
+from charts.pca import make_pca_plot
+
+from charts.hierarchical import (
+    make_hierarchical_plot,
+)
+
 from charts.grainlog import (
     make_grain_log,
 )
@@ -40,6 +46,8 @@ from logic.exporters import (
     get_frequency_export_df,
     get_ternary_export_df,
     get_grainlog_export_df,
+    get_pca_export_df,
+    get_hierarchical_export_df,
     add_export_metadata,
 )
 
@@ -160,8 +168,8 @@ rs_mmes_ids = set(
 )
 
 mmes_ids = (
-    primary_mmes_ids
-    | rs_mmes_ids
+        primary_mmes_ids
+        | rs_mmes_ids
 )
 
 matched_count = (
@@ -217,7 +225,15 @@ print(
     ].duplicated().sum(),
 )
 
-app = Dash(__name__)
+app = Dash(
+    __name__,
+    external_scripts=[
+        (
+            "https://cdnjs.cloudflare.com/ajax/libs/"
+            "html2canvas/1.4.1/html2canvas.min.js"
+        ),
+    ],
+)
 app.title = "MGS_GSA_Plotter"
 
 app.layout = html.Div(
@@ -282,6 +298,33 @@ app.layout = html.Div(
 
                     "show_centroids": False,
                     "show_covariance": False,
+
+                    "analysis_variables": [],
+                    "analysis_standardize": True,
+
+                    "cluster_linkage": "ward",
+                    "cluster_metric": "euclidean",
+                    "cluster_k": 4,
+
+                    "pca_color_mode": "group",
+                    "show_loading_arrows": False,
+                    "show_depth_borehole": False,
+                    "pca_report_sections": [
+                        "scores",
+                        "scree",
+                        "loadings",
+                        "hierarchy",
+                        "heatmap",
+                        "grain_histogram",
+                        "silhouette",
+                        "cluster_summary",
+                    ],
+                    "borehole_vertical_axis": "depth",
+                    "hierarchy_summary_stats": [
+                        "n",
+                        "median",
+                    ],
+                    "hierarchy_summary_variables": [],
 
                     "x_axis": "log",
 
@@ -438,7 +481,6 @@ def save_state(
         pending_global_filters,
         global_samples,
 ):
-
     state = {
         "app": "MGS_GSA_Plotter",
         "version": "17.0",
@@ -471,6 +513,7 @@ def save_state(
             f"{datetime.now():%Y%m%d_%H%M%S}.json"
         ),
     )
+
 
 @app.callback(
     Output(
@@ -515,6 +558,7 @@ def load_state_file(
         state,
         True,
     )
+
 
 @app.callback(
     Output(
@@ -585,6 +629,8 @@ def apply_loaded_state(
             [],
         ),
     )
+
+
 @app.callback(
     Output(
         "layout-store",
@@ -627,6 +673,7 @@ def restore_layout(
         layout_data,
         layout_data,
     )
+
 
 @app.callback(
     Output(
@@ -1421,6 +1468,32 @@ def add_panel(
             "show_std3": False,
             "show_centroids": False,
             "show_covariance": False,
+            "analysis_variables": [],
+            "analysis_standardize": True,
+
+            "cluster_linkage": "ward",
+            "cluster_metric": "euclidean",
+            "cluster_k": 4,
+
+            "pca_color_mode": "group",
+            "show_loading_arrows": False,
+            "show_depth_borehole": False,
+            "pca_report_sections": [
+                "scores",
+                "scree",
+                "loadings",
+                "hierarchy",
+                "heatmap",
+                "grain_histogram",
+                "silhouette",
+                "cluster_summary",
+            ],
+            "borehole_vertical_axis": "depth",
+            "hierarchy_summary_stats": [
+                "n",
+                "median",
+            ],
+            "hierarchy_summary_variables": [],
             "x_axis": "log",
             "show_break_2": False,
             "show_break_4": False,
@@ -2658,6 +2731,26 @@ def update_graphs(
                 panel_samples,
                 panel,
             )
+        elif chart_type == "PCA":
+
+            fig = make_pca_plot(
+                gsa_df,
+                mmes_df,
+                mmes_rs_df,
+                panel_samples,
+                panel,
+            )
+
+        elif (
+                chart_type
+                == "Hierarchical Clustering"
+        ):
+
+            fig = make_hierarchical_plot(
+                gsa_df,
+                panel_samples,
+                panel,
+            )
 
         elif chart_type == "Sample Information":
 
@@ -2709,6 +2802,39 @@ def update_graphs(
                             ),
                             "scale": 2,
                         },
+                    },
+                )
+            )
+
+        elif chart_type == "PCA":
+
+            # make_pca_plot() now returns a responsive Dash
+            # dashboard component instead of one Plotly figure.
+            #
+            # Keep the panel viewport scrollable while allowing
+            # the dashboard grid to use all available width.
+            contents.append(
+                html.Div(
+                    fig,
+
+                    style={
+                        "height":
+                            "100%",
+
+                        "width":
+                            "100%",
+
+                        "overflowY":
+                            "auto",
+
+                        "overflowX":
+                            "auto",
+
+                        "minWidth":
+                            0,
+
+                        "boxSizing":
+                            "border-box",
                     },
                 )
             )
@@ -2948,6 +3074,279 @@ def update_psd_settings(
             "Dry Sieve":
                 "Dry Sieve" in selected,
         }
+
+    return panel_data
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    [
+        Input(
+            {
+                "type":
+                    "analysis-variables",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "analysis-standardize",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "cluster-linkage",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "cluster-metric",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "cluster-k",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "pca-color-mode",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "show-loading-arrows",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "pca-report-sections",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "borehole-vertical-axis",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "hierarchy-summary-stats",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+
+        Input(
+            {
+                "type":
+                    "hierarchy-summary-variables",
+                "index":
+                    ALL,
+            },
+            "value",
+        ),
+    ],
+
+    State(
+        "panel-store",
+        "data",
+    ),
+
+    prevent_initial_call=True,
+)
+def update_multivariate_settings(
+        variables,
+        standardize,
+        linkage_methods,
+        distance_metrics,
+        cluster_k_values,
+        color_modes,
+        loading_arrow_values,
+        report_section_values,
+        borehole_vertical_axis_values,
+        hierarchy_summary_stats_values,
+        hierarchy_summary_variable_values,
+        panel_data,
+):
+    if panel_data is None:
+        raise PreventUpdate
+
+    if not (
+            len(panel_data)
+            == len(variables)
+            == len(standardize)
+            == len(linkage_methods)
+            == len(distance_metrics)
+            == len(cluster_k_values)
+            == len(color_modes)
+            == len(loading_arrow_values)
+            == len(report_section_values)
+            == len(borehole_vertical_axis_values)
+            == len(hierarchy_summary_stats_values)
+            == len(hierarchy_summary_variable_values)
+    ):
+        raise PreventUpdate
+
+    for i, panel in enumerate(
+            panel_data
+    ):
+
+        panel[
+            "analysis_variables"
+        ] = (
+                variables[i]
+                or []
+        )
+
+        panel[
+            "analysis_standardize"
+        ] = (
+                "standardize"
+                in (
+                    standardize[i]
+                    or []
+                )
+        )
+
+        panel[
+            "cluster_linkage"
+        ] = (
+                linkage_methods[i]
+                or "ward"
+        )
+
+        panel[
+            "cluster_metric"
+        ] = (
+                distance_metrics[i]
+                or "euclidean"
+        )
+
+        panel[
+            "cluster_k"
+        ] = int(
+            cluster_k_values[i]
+            or 4
+        )
+
+        panel[
+            "pca_color_mode"
+        ] = (
+                color_modes[i]
+                or "group"
+        )
+
+        panel[
+            "show_loading_arrows"
+        ] = (
+                "arrows"
+                in (
+                    loading_arrow_values[i]
+                    or []
+                )
+        )
+
+        panel[
+            "pca_report_sections"
+        ] = (
+                report_section_values[i]
+                or []
+        )
+
+        panel[
+            "borehole_vertical_axis"
+        ] = (
+                borehole_vertical_axis_values[i]
+                or "depth"
+        )
+
+        # Legacy compatibility for saved-state logic and any
+        # older code that still checks this field.
+        panel[
+            "show_depth_borehole"
+        ] = (
+                "depth"
+                in panel[
+                    "pca_report_sections"
+                ]
+        )
+
+        panel[
+            "hierarchy_summary_stats"
+        ] = (
+                hierarchy_summary_stats_values[i]
+                or []
+        )
+
+        panel[
+            "hierarchy_summary_variables"
+        ] = (
+                hierarchy_summary_variable_values[i]
+                or []
+        )
+
+        # Ward clustering requires Euclidean distance.
+        if (
+                panel[
+                    "cluster_linkage"
+                ]
+                == "ward"
+        ):
+
+            panel[
+                "cluster_metric"
+            ] = (
+                "euclidean"
+            )
 
     return panel_data
 
@@ -3198,6 +3597,7 @@ def toggle_group_by_visibility(
         "PSD Frequency",
         "Grain Size Log",
         "Ternary",
+        "PCA",
     ]
 
     if not supports_grouping:
@@ -4477,6 +4877,31 @@ def export_csv(
         )
 
         filename = "Grain_Size_Log.csv"
+
+    elif chart_type == "PCA":
+
+        df = get_pca_export_df(
+            gsa_df,
+            panel_samples,
+            panel,
+        )
+
+        filename = "PCA.csv"
+
+    elif (
+            chart_type
+            == "Hierarchical Clustering"
+    ):
+
+        df = get_hierarchical_export_df(
+            gsa_df,
+            panel_samples,
+            panel,
+        )
+
+        filename = (
+            "Hierarchical_Clustering.csv"
+        )
 
     else:
         return None

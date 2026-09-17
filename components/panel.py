@@ -56,6 +56,38 @@ def create_panel(
 
     chart_type = panel["chart_type"]
 
+    # --------------------------------------------------------
+    # PCA report-section visibility
+    #
+    # Backward compatibility:
+    # older saved states used show_depth_borehole instead of
+    # the unified pca_report_sections setting.
+    # --------------------------------------------------------
+
+    if "pca_report_sections" not in panel:
+
+        panel["pca_report_sections"] = [
+            "scores",
+            "scree",
+            "loadings",
+            "hierarchy",
+            "heatmap",
+            "grain_histogram",
+            "silhouette",
+            "cluster_summary",
+        ]
+
+        if panel.get(
+                "show_depth_borehole",
+                False,
+        ):
+
+            panel[
+                "pca_report_sections"
+            ].append(
+                "depth"
+            )
+
     is_psd = chart_type in [
         "PSD Undersize",
         "PSD Frequency",
@@ -69,20 +101,37 @@ def create_panel(
             chart_type == "Grain Size Log"
     )
 
+    is_pca = (
+            chart_type == "PCA"
+    )
+
+    is_hierarchical = (
+            chart_type
+            == "Hierarchical Clustering"
+    )
+
+    is_multivariate = (
+            is_pca
+            or is_hierarchical
+    )
+
     supports_grouping = (
             is_psd
             or is_ternary
             or is_grain_log
+            or is_pca
     )
 
     supports_grain_breaks = (
             is_ternary
             or is_grain_log
+            or is_pca
     )
 
     supports_sample_display = (
             is_psd
             or is_ternary
+            or is_pca
     )
 
     graph = html.Div(
@@ -285,6 +334,7 @@ def create_panel(
                                     "PSD Frequency",
                                     "Ternary",
                                     "Grain Size Log",
+                                    "PCA",
                                     "Sample Information",
                                 ],
                                 value=panel["chart_type"],
@@ -568,7 +618,7 @@ def create_panel(
                                         style={
                                             "display":
                                                 "block"
-                                                if is_grain_log
+                                                if (is_grain_log or is_pca)
                                                 else "none"
                                         },
                                     ),
@@ -706,6 +756,13 @@ def create_panel(
                                             "type": "use-custom-groups",
                                             "index": panel["id"],
                                         },
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if supports_grouping
+                                                else "none"
+                                            )
+                                        },
                                         options=[
                                             {
                                                 "label": " Use Custom Groups",
@@ -730,9 +787,12 @@ def create_panel(
                                         style={
                                             "display":
                                                 "block"
-                                                if panel.get(
-                                                    "use_custom_groups",
-                                                    False,
+                                                if (
+                                                    supports_grouping
+                                                    and panel.get(
+                                                        "use_custom_groups",
+                                                        False,
+                                                        )
                                                 )
                                                 else "none",
                                             "marginTop": "10px",
@@ -907,6 +967,550 @@ def create_panel(
                                             )
                                         },
                                     ),
+                                    # ---------------------------------
+                                    # PCA / multivariate analysis
+                                    # ---------------------------------
+
+                                    html.Div(
+                                        [
+                                            html.Hr(),
+
+                                            html.Label(
+                                                "Analysis Variables"
+                                            ),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type":
+                                                        "analysis-variables",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label": label,
+                                                        "value": field,
+                                                    }
+                                                    for field, label
+                                                    in NUMERIC_FIELDS.items()
+                                                ],
+
+                                                value=panel.get(
+                                                    "analysis_variables",
+                                                    [],
+                                                ),
+
+                                                multi=True,
+
+                                                placeholder=(
+                                                    "Select 2 or more variables..."
+                                                ),
+                                            ),
+
+                                            html.Br(),
+
+                                            dcc.Checklist(
+                                                id={
+                                                    "type":
+                                                        "analysis-standardize",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            " Standardize variables",
+                                                        "value":
+                                                            "standardize",
+                                                    }
+                                                ],
+
+                                                value=(
+                                                    [
+                                                        "standardize"
+                                                    ]
+                                                    if panel.get(
+                                                        "analysis_standardize",
+                                                        True,
+                                                    )
+                                                    else []
+                                                ),
+                                            ),
+
+                                            html.Hr(),
+
+                                            html.Label(
+                                                "Hierarchical Clustering"
+                                            ),
+
+                                            html.Br(),
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Linkage Method"
+                                            ),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type":
+                                                        "cluster-linkage",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label": "Ward",
+                                                        "value": "ward",
+                                                    },
+                                                    {
+                                                        "label": "Average",
+                                                        "value": "average",
+                                                    },
+                                                    {
+                                                        "label": "Complete",
+                                                        "value": "complete",
+                                                    },
+                                                    {
+                                                        "label": "Single",
+                                                        "value": "single",
+                                                    },
+                                                ],
+
+                                                value=panel.get(
+                                                    "cluster_linkage",
+                                                    "ward",
+                                                ),
+
+                                                clearable=False,
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Distance Metric"
+                                            ),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type":
+                                                        "cluster-metric",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            "Euclidean",
+                                                        "value":
+                                                            "euclidean",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            "Manhattan",
+                                                        "value":
+                                                            "cityblock",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            "Cosine",
+                                                        "value":
+                                                            "cosine",
+                                                    },
+                                                ],
+
+                                                value=panel.get(
+                                                    "cluster_metric",
+                                                    "euclidean",
+                                                ),
+
+                                                clearable=False,
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Number of Clusters (k)"
+                                            ),
+
+                                            dcc.Slider(
+                                                id={
+                                                    "type":
+                                                        "cluster-k",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                min=2,
+                                                max=10,
+                                                step=1,
+
+                                                value=panel.get(
+                                                    "cluster_k",
+                                                    4,
+                                                ),
+
+                                                marks={
+                                                    i: str(i)
+                                                    for i
+                                                    in range(
+                                                        2,
+                                                        11,
+                                                    )
+                                                },
+
+                                                tooltip={
+                                                    "placement":
+                                                        "bottom",
+                                                    "always_visible":
+                                                        False,
+                                                },
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Hierarchy Summary Variables"
+                                            ),
+
+                                            dcc.Dropdown(
+                                                id={
+                                                    "type":
+                                                        "hierarchy-summary-variables",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label": label,
+                                                        "value": field,
+                                                    }
+                                                    for field, label
+                                                    in NUMERIC_FIELDS.items()
+                                                ],
+
+                                                value=panel.get(
+                                                    "hierarchy_summary_variables",
+                                                    panel.get(
+                                                        "analysis_variables",
+                                                        [],
+                                                    ),
+                                                ),
+
+                                                multi=True,
+
+                                                placeholder=(
+                                                    "Select variables to summarize..."
+                                                ),
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Hierarchy Summary Statistics"
+                                            ),
+
+                                            dcc.Checklist(
+                                                id={
+                                                    "type":
+                                                        "hierarchy-summary-stats",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            " Sample Count (N)",
+                                                        "value":
+                                                            "n",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Median",
+                                                        "value":
+                                                            "median",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " IQR (Q25–Q75)",
+                                                        "value":
+                                                            "iqr",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Mean",
+                                                        "value":
+                                                            "mean",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Std Dev",
+                                                        "value":
+                                                            "std",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Min–Max",
+                                                        "value":
+                                                            "minmax",
+                                                    },
+                                                ],
+
+                                                value=panel.get(
+                                                    "hierarchy_summary_stats",
+                                                    [
+                                                        "n",
+                                                        "median",
+                                                    ],
+                                                ),
+
+                                                style={
+                                                    "display":
+                                                        "grid",
+
+                                                    "gridTemplateColumns":
+                                                        "1fr 1fr",
+
+                                                    "gap":
+                                                        "4px",
+                                                },
+                                            ),
+
+                                            html.Br(),
+
+                                            dcc.Checklist(
+                                                id={
+                                                    "type":
+                                                        "show-loading-arrows",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            " Show Loading Arrows",
+                                                        "value":
+                                                            "arrows",
+                                                    }
+                                                ],
+
+                                                value=(
+                                                    ["arrows"]
+                                                    if panel.get(
+                                                        "show_loading_arrows",
+                                                        False,
+                                                    )
+                                                    else []
+                                                ),
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "PCA Point Coloring"
+                                            ),
+
+                                            dcc.RadioItems(
+                                                id={
+                                                    "type":
+                                                        "pca-color-mode",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            " Group By / Custom Groups",
+                                                        "value":
+                                                            "group",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Hierarchical Cluster",
+                                                        "value":
+                                                            "cluster",
+                                                    },
+                                                ],
+
+                                                value=panel.get(
+                                                    "pca_color_mode",
+                                                    "group",
+                                                ),
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Details(
+                                                [
+                                                    html.Summary(
+                                                        "Displayed Report Sections",
+                                                        style={
+                                                            "cursor":
+                                                                "pointer",
+                                                            "fontWeight":
+                                                                "600",
+                                                            "padding":
+                                                                "6px 0",
+                                                        },
+                                                    ),
+
+                                                    dcc.Checklist(
+                                                        id={
+                                                            "type":
+                                                                "pca-report-sections",
+                                                            "index":
+                                                                panel["id"],
+                                                        },
+
+                                                        options=[
+                                                            {
+                                                                "label":
+                                                                    " PCA Scores",
+                                                                "value":
+                                                                    "scores",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Scree Plot",
+                                                                "value":
+                                                                    "scree",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Loadings",
+                                                                "value":
+                                                                    "loadings",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Cluster Hierarchy Summary",
+                                                                "value":
+                                                                    "hierarchy",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Cluster / Group Heatmap",
+                                                                "value":
+                                                                    "heatmap",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Grain-Fraction Histograms",
+                                                                "value":
+                                                                    "grain_histogram",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Silhouette by k",
+                                                                "value":
+                                                                    "silhouette",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Cluster Summary",
+                                                                "value":
+                                                                    "cluster_summary",
+                                                            },
+                                                            {
+                                                                "label":
+                                                                    " Cluster by Borehole",
+                                                                "value":
+                                                                    "depth",
+                                                            },
+                                                        ],
+
+                                                        value=panel.get(
+                                                            "pca_report_sections",
+                                                            [
+                                                                "scores",
+                                                                "scree",
+                                                                "loadings",
+                                                                "hierarchy",
+                                                                "heatmap",
+                                                                "grain_histogram",
+                                                                "silhouette",
+                                                                "cluster_summary",
+                                                            ],
+                                                        ),
+
+                                                        style={
+                                                            "display":
+                                                                "grid",
+                                                            "gridTemplateColumns":
+                                                                "1fr",
+                                                            "gap":
+                                                                "5px",
+                                                            "padding":
+                                                                "7px 10px 10px 10px",
+                                                        },
+                                                    ),
+                                                ],
+
+                                                open=False,
+
+                                                style={
+                                                    "border":
+                                                        "1px solid #d0d5dd",
+                                                    "borderRadius":
+                                                        "4px",
+                                                    "padding":
+                                                        "0 8px",
+                                                },
+                                            ),
+
+                                            html.Br(),
+
+                                            html.Label(
+                                                "Borehole Vertical Axis"
+                                            ),
+
+                                            dcc.RadioItems(
+                                                id={
+                                                    "type":
+                                                        "borehole-vertical-axis",
+                                                    "index":
+                                                        panel["id"],
+                                                },
+
+                                                options=[
+                                                    {
+                                                        "label":
+                                                            " Depth",
+                                                        "value":
+                                                            "depth",
+                                                    },
+                                                    {
+                                                        "label":
+                                                            " Elevation",
+                                                        "value":
+                                                            "elevation",
+                                                    },
+                                                ],
+
+                                                value=panel.get(
+                                                    "borehole_vertical_axis",
+                                                    "depth",
+                                                ),
+
+                                                inline=True,
+                                            ),
+                                        ],
+
+                                        style={
+                                            "display": (
+                                                "block"
+                                                if is_multivariate
+                                                else "none"
+                                            )
+                                        },
+                                    ),
                                 ],
                                 style={
                                     "display": (
@@ -917,6 +1521,8 @@ def create_panel(
                                             "PSD Frequency",
                                             "Ternary",
                                             "Grain Size Log",
+                                            "PCA",
+                                            "Hierarchical Clustering",
                                         ]
                                                 and panel.get("graph_options_open", True)
                                         )

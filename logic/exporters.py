@@ -11,13 +11,17 @@ from logic.mmes_helpers import (
     get_fr_columns,
 )
 
+from logic.multivariate import (
+    calculate_pca,
+    calculate_hierarchical,
+)
+
 
 def get_psd_export_df(
         mmes_df,
         mmes_rs_df,
         selected_samples,
 ):
-
     selected_samples = selected_samples or []
 
     # -------------------------------------------------
@@ -116,7 +120,6 @@ def get_psd_export_df(
         }
 
         for col in source_cols:
-
             record[col] = row[col]
 
         records.append(record)
@@ -129,7 +132,6 @@ def get_psd_export_df(
     # -------------------------------------------------
 
     if not records:
-
         return pd.DataFrame(
             columns=[
                 "GSA_ID",
@@ -161,7 +163,6 @@ def get_frequency_export_df(
         mmes_rs_df,
         selected_samples,
 ):
-
     selected_samples = selected_samples or []
 
     # -------------------------------------------------
@@ -256,7 +257,6 @@ def get_frequency_export_df(
         }
 
         for col in source_cols:
-
             record[col] = row[col]
 
         records.append(record)
@@ -269,7 +269,6 @@ def get_frequency_export_df(
     # -------------------------------------------------
 
     if not records:
-
         return pd.DataFrame(
             columns=[
                 "GSA_ID",
@@ -492,6 +491,190 @@ def get_grainlog_export_df(
     ]
 
     return subset[export_fields]
+
+
+def get_pca_export_df(
+        gsa_df,
+        selected_samples,
+        panel,
+):
+    pca_result = calculate_pca(
+        gsa_df,
+        selected_samples,
+        panel.get(
+            "analysis_variables",
+            [],
+        ),
+        standardize=panel.get(
+            "analysis_standardize",
+            True,
+        ),
+    )
+
+    if pca_result is None:
+
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+            ]
+        )
+
+    cluster_result = calculate_hierarchical(
+        gsa_df,
+        selected_samples,
+        panel.get(
+            "analysis_variables",
+            [],
+        ),
+        standardize=panel.get(
+            "analysis_standardize",
+            True,
+        ),
+        linkage_method=panel.get(
+            "cluster_linkage",
+            "ward",
+        ),
+        distance_metric=panel.get(
+            "cluster_metric",
+            "euclidean",
+        ),
+        cluster_k=panel.get(
+            "cluster_k",
+            4,
+        ),
+        silhouette_k_min=2,
+        silhouette_k_max=10,
+    )
+
+    output = (
+        pca_result[
+            "dataframe"
+        ]
+        .copy()
+    )
+
+    output = (
+        output
+        .merge(
+            pca_result[
+                "scores"
+            ],
+            on="GSA_ID",
+            how="left",
+        )
+    )
+
+    if cluster_result is not None:
+
+        cluster_column = (
+            f"Cluster_k"
+            f"{cluster_result['selected_k']}"
+        )
+
+        clusters = (
+            cluster_result[
+                "clusters"
+            ]
+            .rename(
+                columns={
+                    "Cluster":
+                        cluster_column
+                }
+            )
+        )
+
+        output = (
+            output
+            .merge(
+                clusters,
+                on="GSA_ID",
+                how="left",
+            )
+        )
+
+    return output
+
+
+def get_hierarchical_export_df(
+        gsa_df,
+        selected_samples,
+        panel,
+):
+    result = calculate_hierarchical(
+        gsa_df,
+        selected_samples,
+        panel.get(
+            "analysis_variables",
+            [],
+        ),
+        standardize=panel.get(
+            "analysis_standardize",
+            True,
+        ),
+        linkage_method=panel.get(
+            "cluster_linkage",
+            "ward",
+        ),
+        distance_metric=panel.get(
+            "cluster_metric",
+            "euclidean",
+        ),
+    )
+
+    if result is None:
+        return pd.DataFrame(
+            columns=[
+                "GSA_ID",
+                "Cluster_Order",
+            ]
+        )
+
+    ordered_samples = (
+        result[
+            "dendrogram"
+        ][
+            "ivl"
+        ]
+    )
+
+    order_lookup = {
+        str(sample): i + 1
+        for i, sample
+        in enumerate(
+            ordered_samples
+        )
+    }
+
+    output = (
+        result[
+            "dataframe"
+        ]
+        .copy()
+    )
+
+    output[
+        "Cluster_Order"
+    ] = (
+        output[
+            "GSA_ID"
+        ]
+        .astype(str)
+        .map(
+            order_lookup
+        )
+    )
+
+    output = (
+        output
+        .sort_values(
+            "Cluster_Order"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    return output
 
 
 def add_export_metadata(
