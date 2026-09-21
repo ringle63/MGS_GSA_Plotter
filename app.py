@@ -7,6 +7,7 @@ from dash import (
     State,
     MATCH,
     ALL,
+    Patch,
     callback_context,
 )
 import copy
@@ -244,6 +245,29 @@ app = Dash(
 )
 app.title = "MGS_GSA_Plotter"
 
+
+
+def _find_panel_index(panel_data, panel_id):
+    """Return the list index for a stable panel id."""
+    for i, panel in enumerate(panel_data or []):
+        if panel.get("id") == panel_id:
+            return i
+    return None
+
+
+def _get_panel_copy(panel_data, panel_id):
+    """Deep-copy one panel by stable id without mutating the Store state."""
+    index = _find_panel_index(panel_data, panel_id)
+
+    if index is None:
+        return None, None
+
+    return index, copy.deepcopy(panel_data[index])
+
+
+
+
+
 app.layout = html.Div(
     [
         html.H1("MGS_GSA_Plotter"),
@@ -317,7 +341,7 @@ app.layout = html.Div(
 
                     "pca_color_mode": "group",
                     "show_loading_arrows": False,
-                    "show_depth_borehole": False,
+                    "show_depth_borehole": True,
                     "pca_report_sections": [
                         "scores",
                         "scree",
@@ -327,9 +351,9 @@ app.layout = html.Div(
                         "grain_histogram",
                         "silhouette",
                         "cluster_summary",
+                        "depth",
                     ],
                     "borehole_vertical_axis": "depth",
-            "pca_vertical_x_field": "BoreholeID",
                     "pca_vertical_x_field": "BoreholeID",
                     "hierarchy_summary_stats": [
                         "n",
@@ -371,6 +395,101 @@ app.layout = html.Div(
                     "controls_open": True,
                 }
             ],
+        ),
+
+        dcc.Store(
+            id="panel-applied-store",
+            data=[
+                {
+                    "id": 1,
+                    "chart_type": "PSD Undersize",
+                    "use_global": True,
+
+                    "show_legend": True,
+                    "show_labels": False,
+
+                    "show_samples": True,
+                    "show_mean": False,
+                    "show_grainlog_mean": False,
+                    "grainlog_sort_field": "None",
+                    "grainlog_sort_ascending": True,
+                    "group_by": "None",
+                    "show_std1": False,
+                    "show_std2": False,
+                    "show_std3": False,
+
+                    "show_centroids": False,
+                    "show_covariance": False,
+
+                    "analysis_variables": [],
+                    "analysis_standardize": True,
+                    "mastersizer_pca_input": "frequency",
+
+                    "cluster_linkage": "ward",
+                    "cluster_metric": "euclidean",
+                    "cluster_k": 4,
+
+                    "pca_color_mode": "group",
+                    "show_loading_arrows": False,
+                    "show_depth_borehole": True,
+                    "pca_report_sections": [
+                        "scores",
+                        "scree",
+                        "loadings",
+                        "hierarchy",
+                        "heatmap",
+                        "grain_histogram",
+                        "silhouette",
+                        "cluster_summary",
+                        "depth",
+                    ],
+                    "borehole_vertical_axis": "depth",
+                    "pca_vertical_x_field": "BoreholeID",
+                    "hierarchy_summary_stats": [
+                        "n",
+                        "median",
+                    ],
+                    "hierarchy_summary_variables": [],
+
+                    "x_axis": "log",
+
+                    "show_break_2": False,
+                    "show_break_4": False,
+                    "show_break_8": True,
+                    "show_break_50": False,
+                    "show_break_62_5": True,
+
+                    "mastersizer_break": 8,
+                    "pipette_break": 2,
+                    "mastersizer_sand_break": 62.5,
+                    "grainlog_gravel_settings": {
+                        "Mastersizer": False,
+                        "Pipette": True,
+                        "Kehew": True,
+                        "Dry Sieve": True,
+                    },
+
+                    "show_usda_triangle": True,
+
+                    "panel_filters": [],
+                    "pending_panel_filters": [],
+                    "pending_custom_groups": [],
+                    "custom_group_builder_open": False,
+
+                    "use_custom_groups": False,
+                    "custom_groups": [],
+
+                    "graph_options_open": True,
+                    "override_options_open": False,
+
+                    "controls_open": True,
+                }
+            ],
+        ),
+
+        dcc.Store(
+            id="panel-reset-revision",
+            data=0,
         ),
 
         dcc.Store(
@@ -463,7 +582,7 @@ app.layout = html.Div(
         "n_clicks",
     ),
     State(
-        "panel-store",
+        "panel-applied-store",
         "data",
     ),
     State(
@@ -578,6 +697,11 @@ def load_state_file(
         allow_duplicate=True,
     ),
     Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
         "global-filters",
         "data",
         allow_duplicate=True,
@@ -614,11 +738,14 @@ def apply_loaded_state(
     if not state:
         raise PreventUpdate
 
+    loaded_panels = state.get(
+        "panel_store",
+        [],
+    )
+
     return (
-        state.get(
-            "panel_store",
-            [],
-        ),
+        copy.deepcopy(loaded_panels),
+        copy.deepcopy(loaded_panels),
 
         state.get(
             "global_filters",
@@ -738,7 +865,7 @@ def update_selected_count(selected_samples):
     Output(
         {
             "type": "panel-selected-count",
-            "index": ALL,
+            "index": MATCH,
         },
         "children",
     ),
@@ -750,46 +877,63 @@ def update_selected_count(selected_samples):
         "global-samples",
         "value",
     ),
+    State(
+        {
+            "type": "panel-selected-count",
+            "index": MATCH,
+        },
+        "id",
+    ),
 )
-def update_panel_selected_counts(
+def update_panel_selected_count(
         panel_data,
         global_samples,
+        component_id,
 ):
-    if not panel_data:
+    if (
+            not panel_data
+            or component_id is None
+    ):
         raise PreventUpdate
 
-    ctx = callback_context
+    panel_id = component_id[
+        "index"
+    ]
 
-    if not ctx.outputs_list:
-        raise PreventUpdate
-
-    expected_outputs = len(
-        ctx.outputs_list
+    panel = next(
+        (
+            candidate
+            for candidate
+            in panel_data
+            if candidate.get(
+                "id"
+            ) == panel_id
+        ),
+        None,
     )
 
-    results = []
-
-    for panel in panel_data:
-
-        samples = get_panel_samples(
-            panel,
-            global_samples,
-            gsa_df,
-        )
-
-        if panel["use_global"]:
-            source = "Global"
-        else:
-            source = "Panel"
-
-        results.append(
-            f"{source} Selection: {len(samples)} samples"
-        )
-
-    if len(results) != expected_outputs:
+    if panel is None:
         raise PreventUpdate
 
-    return results
+    samples = get_panel_samples(
+        panel,
+        global_samples,
+        gsa_df,
+    )
+
+    source = (
+        "Global"
+        if panel.get(
+            "use_global",
+            True,
+        )
+        else "Panel"
+    )
+
+    return (
+        f"{source} Selection: "
+        f"{len(samples)} samples"
+    )
 
 
 @app.callback(
@@ -1427,9 +1571,13 @@ def toggle_filter_inputs(
 
 @app.callback(
     Output("panel-container", "children"),
-    Input("panel-store", "data"),
+    Input("panel-applied-store", "data"),
+    Input("panel-reset-revision", "data"),
 )
-def render_panels(panel_data):
+def render_panels(
+        panel_data,
+        _reset_revision,
+):
     panels = []
 
     for display_number, panel in enumerate(panel_data, start=1):
@@ -1445,268 +1593,331 @@ def render_panels(panel_data):
 
 
 @app.callback(
-    Output("panel-store", "data"),
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
     Input("add-panel", "n_clicks"),
     State("panel-store", "data"),
+    State("panel-applied-store", "data"),
     prevent_initial_call=True,
 )
 def add_panel(
         n_clicks,
         panel_data,
+        applied_data,
 ):
-    if len(panel_data) >= 8:
-        return panel_data
+    if not n_clicks:
+        raise PreventUpdate
+
+    panel_data = panel_data or []
+    applied_data = applied_data or []
+
+    if max(
+            len(panel_data),
+            len(applied_data),
+    ) >= 8:
+        raise PreventUpdate
+
+    existing_ids = [
+        panel["id"]
+        for panel in (
+            list(panel_data)
+            + list(applied_data)
+        )
+    ]
 
     next_id = max(
-        panel["id"]
-        for panel in panel_data
+        existing_ids,
+        default=0,
     ) + 1
 
-    panel_data.append(
-        {
-            "id": next_id,
-            "chart_type": "PSD Undersize",
-            "use_global": True,
+    new_panel = {
+        "id": next_id,
+        "chart_type": "PSD Undersize",
+        "use_global": True,
 
-            "show_legend": True,
-            "show_labels": False,
-            "show_samples": True,
-            "show_mean": False,
-            "show_grainlog_mean": False,
-            "grainlog_sort_field": "None",
-            "grainlog_sort_ascending": True,
-            "group_by": "None",
-            "show_std1": False,
-            "show_std2": False,
-            "show_std3": False,
-            "show_centroids": False,
-            "show_covariance": False,
-            "analysis_variables": [],
-            "analysis_standardize": True,
-            "mastersizer_pca_input": "frequency",
+        "show_legend": True,
+        "show_labels": False,
+        "show_samples": True,
+        "show_mean": False,
+        "show_grainlog_mean": False,
+        "grainlog_sort_field": "None",
+        "grainlog_sort_ascending": True,
+        "group_by": "None",
+        "show_std1": False,
+        "show_std2": False,
+        "show_std3": False,
+        "show_centroids": False,
+        "show_covariance": False,
 
-            "cluster_linkage": "ward",
-            "cluster_metric": "euclidean",
-            "cluster_k": 4,
+        "analysis_variables": [],
+        "analysis_standardize": True,
+        "mastersizer_pca_input": "frequency",
 
-            "pca_color_mode": "group",
-            "show_loading_arrows": False,
-            "show_depth_borehole": False,
-            "pca_report_sections": [
-                "scores",
-                "scree",
-                "loadings",
-                "hierarchy",
-                "heatmap",
-                "grain_histogram",
-                "silhouette",
-                "cluster_summary",
-            ],
-            "borehole_vertical_axis": "depth",
-            "hierarchy_summary_stats": [
-                "n",
-                "median",
-            ],
-            "hierarchy_summary_variables": [],
-            "x_axis": "log",
-            "show_break_2": False,
-            "show_break_4": False,
-            "show_break_8": True,
-            "show_break_50": False,
-            "show_break_62_5": True,
+        "cluster_linkage": "ward",
+        "cluster_metric": "euclidean",
+        "cluster_k": 4,
 
-            "mastersizer_break": 8,
-            "mastersizer_sand_break": 62.5,
-            "pipette_break": 2,
+        "pca_color_mode": "group",
+        "show_loading_arrows": False,
+        "show_depth_borehole": True,
+        "pca_report_sections": [
+            "scores",
+            "scree",
+            "loadings",
+            "hierarchy",
+            "heatmap",
+            "grain_histogram",
+            "silhouette",
+            "cluster_summary",
+            "depth",
+        ],
+        "borehole_vertical_axis": "depth",
+        "pca_vertical_x_field": "BoreholeID",
+        "hierarchy_summary_stats": [
+            "n",
+            "median",
+        ],
+        "hierarchy_summary_variables": [],
 
-            "grainlog_gravel_settings": {
-                "Mastersizer": False,
-                "Pipette": True,
-                "Kehew": True,
-                "Dry Sieve": True,
-            },
+        "x_axis": "log",
 
-            "show_usda_triangle": True,
+        "show_break_2": False,
+        "show_break_4": False,
+        "show_break_8": True,
+        "show_break_50": False,
+        "show_break_62_5": True,
 
-            "panel_filters": [],
-            "pending_panel_filters": [],
-            "pending_custom_groups": [],
-            "custom_group_builder_open": False,
+        "mastersizer_break": 8,
+        "mastersizer_sand_break": 62.5,
+        "pipette_break": 2,
 
-            "use_custom_groups": False,
-            "custom_groups": [],
+        "grainlog_gravel_settings": {
+            "Mastersizer": False,
+            "Pipette": True,
+            "Kehew": True,
+            "Dry Sieve": True,
+        },
 
-            "graph_options_open": True,
-            "override_options_open": False,
+        "show_usda_triangle": True,
 
-            "controls_open": True,
-        }
+        "panel_filters": [],
+        "pending_panel_filters": [],
+        "pending_custom_groups": [],
+        "custom_group_builder_open": False,
+
+        "use_custom_groups": False,
+        "custom_groups": [],
+
+        "graph_options_open": True,
+        "override_options_open": False,
+        "controls_open": True,
+    }
+
+    panel_patch = Patch()
+    panel_patch.append(
+        copy.deepcopy(new_panel)
     )
 
-    return panel_data
+    applied_patch = Patch()
+    applied_patch.append(
+        copy.deepcopy(new_panel)
+    )
+
+    return panel_patch, applied_patch
 
 
 @app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
     Input(
         {
             "type": "remove-panel",
-            "index": ALL,
+            "index": MATCH,
         },
         "n_clicks",
     ),
+    State(
+        {
+            "type": "remove-panel",
+            "index": MATCH,
+        },
+        "id",
+    ),
     State("panel-store", "data"),
+    State("panel-applied-store", "data"),
     prevent_initial_call=True,
 )
 def remove_panel(
         n_clicks,
+        component_id,
         panel_data,
+        applied_data,
 ):
-    trigger = callback_context.triggered
+    if not n_clicks or component_id is None:
+        raise PreventUpdate
 
-    if not trigger:
-        return panel_data
+    panel_data = panel_data or []
+    applied_data = applied_data or []
 
-    trigger_id = eval(
-        trigger[0]["prop_id"].split(".")[0]
+    if len(applied_data) <= 1:
+        raise PreventUpdate
+
+    panel_id = component_id["index"]
+
+    panel_index = _find_panel_index(
+        panel_data,
+        panel_id,
+    )
+    applied_index = _find_panel_index(
+        applied_data,
+        panel_id,
     )
 
-    panel_id = trigger_id["index"]
+    if panel_index is None or applied_index is None:
+        raise PreventUpdate
 
-    if len(panel_data) == 1:
-        return panel_data
+    panel_patch = Patch()
+    del panel_patch[panel_index]
 
-    return [
-        panel
-        for panel in panel_data
-        if panel["id"] != panel_id
-    ]
+    applied_patch = Patch()
+    del applied_patch[applied_index]
+
+    return panel_patch, applied_patch
 
 
 @app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
     Input(
         {
             "type": "duplicate-panel",
-            "index": ALL,
+            "index": MATCH,
         },
         "n_clicks",
     ),
+    State(
+        {
+            "type": "duplicate-panel",
+            "index": MATCH,
+        },
+        "id",
+    ),
     State("panel-store", "data"),
+    State("panel-applied-store", "data"),
     prevent_initial_call=True,
 )
 def duplicate_panel(
         n_clicks,
+        component_id,
         panel_data,
+        applied_data,
 ):
-    trigger = callback_context.triggered
+    if not n_clicks or component_id is None:
+        raise PreventUpdate
 
-    if not trigger:
-        return panel_data
+    panel_data = panel_data or []
+    applied_data = applied_data or []
 
-    if len(panel_data) >= 8:
-        return panel_data
+    if max(
+            len(panel_data),
+            len(applied_data),
+    ) >= 8:
+        raise PreventUpdate
 
-    trigger_id = eval(
-        trigger[0]["prop_id"].split(".")[0]
-    )
-
-    panel_id = trigger_id["index"]
+    panel_id = component_id["index"]
 
     original = next(
-        panel
-        for panel in panel_data
-        if panel["id"] == panel_id
+        (
+            panel
+            for panel in applied_data
+            if panel.get("id") == panel_id
+        ),
+        None,
     )
 
-    next_id = max(
+    if original is None:
+        raise PreventUpdate
+
+    existing_ids = [
         panel["id"]
-        for panel in panel_data
+        for panel in (
+            list(panel_data)
+            + list(applied_data)
+        )
+    ]
+
+    next_id = max(
+        existing_ids,
+        default=0,
     ) + 1
 
     new_panel = copy.deepcopy(original)
-
     new_panel["id"] = next_id
 
-    panel_data.append(new_panel)
+    panel_patch = Patch()
+    panel_patch.append(
+        copy.deepcopy(new_panel)
+    )
 
-    return panel_data
+    applied_patch = Patch()
+    applied_patch.append(
+        copy.deepcopy(new_panel)
+    )
 
-
-@app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
-    Input(
-        {
-            "type": "use-global",
-            "index": ALL,
-        },
-        "value",
-    ),
-    State("panel-store", "data"),
-    prevent_initial_call=True,
-)
-def update_use_global(
-        checklist_values,
-        panel_data,
-):
-    if (
-            panel_data is None
-            or checklist_values is None
-            or len(panel_data) != len(checklist_values)
-    ):
-        raise PreventUpdate
-
-    for panel, values in zip(
-            panel_data,
-            checklist_values,
-    ):
-        panel["use_global"] = (
-                "global" in values
-        )
-
-    return panel_data
+    return panel_patch, applied_patch
 
 
 @app.callback(
     Output(
         {
             "type": "panel-query-builder-container",
-            "index": ALL,
+            "index": MATCH,
         },
         "style",
     ),
     Input(
         {
             "type": "use-global",
-            "index": ALL,
+            "index": MATCH,
         },
         "value",
     ),
 )
 def show_hide_panel_query_builder(
-        use_global_values,
+        use_global_value,
 ):
-    styles = []
+    if "global" in (use_global_value or []):
+        return {
+            "display": "none",
+        }
 
-    for value in use_global_values:
-
-        if "global" in (value or []):
-
-            styles.append(
-                {
-                    "display": "none",
-                }
-            )
-
-        else:
-
-            styles.append(
-                {
-                    "display": "block",
-                }
-            )
-
-    return styles
+    return {
+        "display": "block",
+    }
 
 
 @app.callback(
@@ -2119,56 +2330,49 @@ def add_panel_filter(
         minimum_value,
         maximum_value,
 ):
+    if not n_clicks:
+        raise PreventUpdate
+
     trigger = callback_context.triggered_id
 
     if trigger is None:
         raise PreventUpdate
 
     panel_id = trigger["index"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    filters = panel.get(
-        "pending_panel_filters",
-        [],
+    filters = copy.deepcopy(
+        panel.get(
+            "pending_panel_filters",
+            [],
+        )
     )
 
     if operator == "CONTAINS":
-
         value = text_value
 
     elif field in NUMERIC_FIELDS:
-
         if operator == "BETWEEN":
-
             value = [
                 minimum_value,
                 maximum_value,
             ]
-
         else:
-
             value = number_value
 
     else:
-
         value = dropdown_value
 
     if field is None:
         raise PreventUpdate
 
     if operator == "BETWEEN":
-
         if (
                 value[0] is None
                 or value[1] is None
@@ -2182,24 +2386,24 @@ def add_panel_filter(
     ]:
         raise PreventUpdate
 
-    new_clause = {
-        "field": field,
-        "operator": operator,
-        "value": value,
-        "logic": (
-            "AND"
-            if filters
-            else None
-        ),
-    }
-
     filters.append(
-        new_clause
+        {
+            "field": field,
+            "operator": operator,
+            "value": value,
+            "logic": (
+                "AND"
+                if filters
+                else None
+            ),
+        }
     )
 
     panel["pending_panel_filters"] = filters
 
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -2393,10 +2597,18 @@ def show_panel_filter_list(
     Input(
         {
             "type": "remove-panel-filter",
-            "index": ALL,
-            "panel": ALL,
+            "index": MATCH,
+            "panel": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "remove-panel-filter",
+            "index": MATCH,
+            "panel": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -2405,46 +2617,40 @@ def show_panel_filter_list(
     prevent_initial_call=True,
 )
 def remove_panel_filter(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
+    clause_index = component_id["index"]
+    panel_id = component_id["panel"]
 
-    if trigger is None:
-        raise PreventUpdate
-
-    clause_index = trigger["index"]
-    panel_id = trigger["panel"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    filters = panel.get(
-        "pending_panel_filters",
-        []
+    filters = copy.deepcopy(
+        panel.get(
+            "pending_panel_filters",
+            [],
+        )
     )
 
     if clause_index >= len(filters):
         raise PreventUpdate
 
-    new_filters = filters.copy()
-    new_filters.pop(clause_index)
+    filters.pop(clause_index)
+    panel["pending_panel_filters"] = filters
 
-    panel["pending_panel_filters"] = new_filters
-
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -2456,10 +2662,18 @@ def remove_panel_filter(
     Input(
         {
             "type": "panel-filter-logic",
-            "index": ALL,
-            "panel": ALL,
+            "index": MATCH,
+            "panel": MATCH,
         },
         "value",
+    ),
+    State(
+        {
+            "type": "panel-filter-logic",
+            "index": MATCH,
+            "panel": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -2468,52 +2682,46 @@ def remove_panel_filter(
     prevent_initial_call=True,
 )
 def update_panel_filter_logic(
-        logic_values,
+        logic_value,
+        component_id,
         panel_data,
 ):
-    trigger = callback_context.triggered_id
-
-    if trigger is None:
+    if component_id is None:
         raise PreventUpdate
 
-    panel_id = trigger["panel"]
+    panel_id = component_id["panel"]
+    clause_index = component_id["index"]
 
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    if clause_index == 0:
+        raise PreventUpdate
+
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    filters = panel.get(
-        "pending_panel_filters",
-        []
+    filters = copy.deepcopy(
+        panel.get(
+            "pending_panel_filters",
+            [],
+        )
     )
 
-    if not filters:
+    if clause_index >= len(filters):
         raise PreventUpdate
 
-    new_filters = copy.deepcopy(
-        filters
+    filters[clause_index]["logic"] = (
+        logic_value
+        or "AND"
     )
+    panel["pending_panel_filters"] = filters
 
-    for i, value in enumerate(
-            logic_values
-    ):
-        if i == 0:
-            continue
-
-        if i < len(new_filters):
-            new_filters[i]["logic"] = value
-
-    panel["pending_panel_filters"] = new_filters
-
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -2525,9 +2733,16 @@ def update_panel_filter_logic(
     Input(
         {
             "type": "apply-panel-filter",
-            "index": ALL,
+            "index": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "apply-panel-filter",
+            "index": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -2536,23 +2751,17 @@ def update_panel_filter_logic(
     prevent_initial_call=True,
 )
 def apply_panel_filter_callback(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
-
-    panel_id = trigger["index"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_id = component_id["index"]
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
@@ -2565,7 +2774,9 @@ def apply_panel_filter_callback(
         )
     )
 
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -2577,9 +2788,16 @@ def apply_panel_filter_callback(
     Input(
         {
             "type": "clear-panel-filter",
-            "index": ALL,
+            "index": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "clear-panel-filter",
+            "index": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -2588,23 +2806,17 @@ def apply_panel_filter_callback(
     prevent_initial_call=True,
 )
 def clear_panel_filters(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
-
-    panel_id = trigger["index"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_id = component_id["index"]
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
@@ -2613,1007 +2825,410 @@ def clear_panel_filters(
     panel["pending_panel_filters"] = []
     panel["panel_filters"] = []
 
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
     Output(
         {
             "type": "panel-content",
-            "index": ALL,
+            "index": MATCH,
         },
         "children",
     ),
-    [
-        Input(
-            {
-                "type": "chart-type",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input("global-samples", "value"),
-        Input("layout-store", "data"),
-    ],
-    State("panel-store", "data"),
+    Input(
+        "panel-applied-store",
+        "data",
+    ),
+    Input(
+        "global-samples",
+        "value",
+    ),
+    Input(
+        "layout-store",
+        "data",
+    ),
+    State(
+        {
+            "type": "panel-content",
+            "index": MATCH,
+        },
+        "id",
+    ),
 )
-def update_graphs(
-        chart_types,
+def update_graph(
+        panel_data,
         global_samples,
         layout_data,
-        panel_data,
+        component_id,
 ):
     if (
             panel_data is None
-            or chart_types is None
-            or len(panel_data) != len(chart_types)
+            or component_id is None
     ):
         raise PreventUpdate
 
-    contents = []
+    panel_id = component_id[
+        "index"
+    ]
 
-    global_samples = global_samples or []
+    panel_position = None
+    panel = None
 
-    layout_lookup = {
-        item["i"]: item
-        for item in (layout_data or [])
-    }
-
-    for panel, chart_type in zip(
-            panel_data,
-            chart_types,
-    ):
-
-        panel = panel.copy()
-
-        layout = layout_lookup.get(
-            str(panel["id"] - 1)
-        )
-
-        if layout:
-            panel["layout"] = layout
-
-        panel_samples = get_panel_samples(
-            panel,
-            global_samples,
-            gsa_df,
-        )
-
-        panel["grouped_samples"] = None
-
-        if (
-                panel.get(
-                    "use_custom_groups",
-                    False,
-                )
-                and has_custom_groups(
-            panel
-        )
-        ):
-            print(panel["custom_groups"])
-
-            subset = gsa_df[
-                gsa_df["GSA_ID"]
-                .astype(str)
-                .isin(panel_samples)
-            ]
-
-            panel["grouped_samples"] = (
-                build_custom_groups(
-                    panel.get(
-                        "custom_groups",
-                        [],
-                    ),
-                    subset,
-                )
-            )
-
-        if chart_type == "PSD Undersize":
-
-            fig = make_psd_plot(
-                gsa_df,
-                mmes_df,
-                mmes_rs_df,
-                panel_samples,
-                panel,
-            )
-
-        elif chart_type == "PSD Frequency":
-
-            fig = make_frequency_plot(
-                gsa_df,
-                mmes_df,
-                mmes_rs_df,
-                panel_samples,
-                panel,
-            )
-
-        elif chart_type == "Ternary":
-
-            fig = make_ternary_plot(
-                gsa_df,
-                mmes_df,
-                panel_samples,
-                panel,
-            )
-
-        elif chart_type == "Grain Size Log":
-
-            fig = make_grain_log(
-                gsa_df,
-                mmes_df,
-                panel_samples,
-                panel,
-            )
-        elif chart_type == "PCA":
-
-            fig = make_pca_plot(
-                gsa_df,
-                mmes_df,
-                mmes_rs_df,
-                panel_samples,
-                panel,
-            )
-
-        elif chart_type == "PCA - Mastersizer Only":
-
-            fig = make_mastersizer_pca_plot(
-                gsa_df,
-                mmes_df,
-                mmes_rs_df,
-                panel_samples,
-                panel,
-            )
-
-        elif (
-                chart_type
-                == "Hierarchical Clustering"
-        ):
-
-            fig = make_hierarchical_plot(
-                gsa_df,
-                panel_samples,
-                panel,
-            )
-
-        elif chart_type == "Sample Information":
-
-            fig = make_sample_information(
-                gsa_df,
-                panel_samples,
-            )
-
-        else:
-
-            import plotly.graph_objects as go
-
-            fig = go.Figure()
-
-            fig.update_layout(
-                title=f"{chart_type} Coming Soon"
-            )
-
-        if chart_type == "Sample Information":
-            contents.append(
-                html.Div(
-                    fig,
-                    style={
-                        "flex": "1 1 auto",
-                        "height": "100%",
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "minHeight": 0,
-                    },
-                )
-            )
-
-        elif chart_type == "Grain Size Log":
-
-            contents.append(
-                dcc.Graph(
-                    figure=fig,
-                    responsive=False,
-                    style={
-                        "width": "100%",
-                    },
-                    config={
-                        "responsive": True,
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": (
-                                f"MGS_GSA_"
-                                f"{chart_type.replace(' ', '_')}"
-                            ),
-                            "scale": 2,
-                        },
-                    },
-                )
-            )
-
-        elif chart_type in [
-            "PCA",
-            "PCA - Mastersizer Only",
-        ]:
-
-            # PCA report chart types return responsive Dash
-            # dashboard component instead of one Plotly figure.
-            #
-            # Keep the panel viewport scrollable while allowing
-            # the dashboard grid to use all available width.
-            contents.append(
-                html.Div(
-                    fig,
-
-                    style={
-                        "height":
-                            "100%",
-
-                        "width":
-                            "100%",
-
-                        "overflowY":
-                            "auto",
-
-                        "overflowX":
-                            "auto",
-
-                        "minWidth":
-                            0,
-
-                        "boxSizing":
-                            "border-box",
-                    },
-                )
-            )
-
-        else:
-
-            contents.append(
-
-                dcc.Graph(
-
-                    figure=fig,
-
-                    responsive=True,
-
-                    style={
-
-                        "height": "100%",
-
-                        "width": "100%",
-
-                    },
-
-                    config={
-
-                        "responsive": True,
-
-                        "toImageButtonOptions": {
-
-                            "format": "png",
-
-                            "filename": (
-
-                                f"MGS_GSA_"
-
-                                f"{chart_type.replace(' ', '_')}"
-
-                            ),
-
-                            "scale": 2,
-
-                        },
-
-                    },
-
-                )
-
-            )
-
-    return contents
-
-
-@app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
-    [
-        Input({"type": "show-legend", "index": ALL}, "value"),
-        Input({"type": "show-labels", "index": ALL}, "value"),
-        Input({"type": "show-samples", "index": ALL}, "value"),
-        Input({"type": "show-mean", "index": ALL}, "value"),
-        Input(
-            {
-                "type": "show-grainlog-mean",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input({"type": "show-std1", "index": ALL}, "value"),
-        Input({"type": "show-std2", "index": ALL}, "value"),
-        Input({"type": "show-std3", "index": ALL}, "value"),
-        Input({"type": "group-by", "index": ALL}, "value"),
-        Input({"type": "show-centroids", "index": ALL}, "value"),
-        Input({"type": "show-covariance", "index": ALL}, "value"),
-        Input({"type": "x-axis", "index": ALL}, "value"),
-        Input({"type": "reference-breaks", "index": ALL}, "value"),
-        Input(
-            {
-                "type": "grainlog-sort-field",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input(
-            {
-                "type": "grainlog-sort-direction",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input(
-            {
-                "type": "grainlog-gravel",
-                "index": ALL,
-            },
-            "value",
-        ),
-    ],
-    State("panel-store", "data"),
-    prevent_initial_call=True,
-)
-def update_psd_settings(
-        legends,
-        labels,
-        samples,
-        means,
-        grainlog_means,
-        std1,
-        std2,
-        std3,
-        groups,
-        centroids,
-        covariance,
-        axes,
-        breaks,
-        grainlog_sort_fields,
-        grainlog_sort_directions,
-        grainlog_gravel,
-        panel_data,
-):
-    if (
-            panel_data is None
-            or legends is None
-            or labels is None
-            or axes is None
-            or breaks is None
-            or len(panel_data) != len(legends)
-            or len(panel_data) != len(labels)
-            or len(panel_data) != len(samples)
-            or len(panel_data) != len(means)
-            or len(panel_data) != len(std1)
-            or len(panel_data) != len(std2)
-            or len(panel_data) != len(std3)
-            or len(panel_data) != len(groups)
-            or len(panel_data) != len(centroids)
-            or len(panel_data) != len(covariance)
-            or len(panel_data) != len(axes)
-            or len(panel_data) != len(breaks)
-            or len(panel_data) != len(grainlog_means)
-            or len(panel_data) != len(grainlog_sort_fields)
-            or len(panel_data) != len(grainlog_sort_directions)
-            or len(panel_data) != len(grainlog_gravel)
-    ):
-        raise PreventUpdate
-
-    for i, panel in enumerate(panel_data):
-        panel["show_legend"] = (
-                "legend" in legends[i]
-        )
-
-        panel["show_labels"] = (
-                "labels" in labels[i]
-        )
-
-        panel["show_samples"] = (
-                "samples" in (samples[i] or [])
-        )
-
-        panel["show_mean"] = (
-                "mean" in (means[i] or [])
-        )
-
-        panel["show_grainlog_mean"] = (
-                "mean"
-                in (grainlog_means[i] or [])
-        )
-
-        panel["show_std1"] = (
-                "std1" in (std1[i] or [])
-        )
-
-        panel["show_std2"] = (
-                "std2" in (std2[i] or [])
-        )
-
-        panel["show_std3"] = (
-                "std3" in (std3[i] or [])
-        )
-
-        panel["group_by"] = (
-            groups[i]
-            if groups[i] is not None
-            else "None"
-        )
-
-        panel["show_centroids"] = (
-                "centroids"
-                in (centroids[i] or [])
-        )
-
-        panel["show_covariance"] = (
-                "covariance"
-                in (covariance[i] or [])
-        )
-
-        panel["x_axis"] = axes[i]
-
-        panel["show_break_2"] = (
-                "2" in (breaks[i] or [])
-        )
-
-        panel["show_break_4"] = (
-                "4" in (breaks[i] or [])
-        )
-
-        panel["show_break_8"] = (
-                "8" in (breaks[i] or [])
-        )
-
-        panel["show_break_50"] = (
-                "50" in (breaks[i] or [])
-        )
-
-        panel["show_break_62_5"] = (
-                "62.5" in (breaks[i] or [])
-        )
-        panel["grainlog_sort_field"] = (
-            grainlog_sort_fields[i]
-        )
-
-        panel["grainlog_sort_ascending"] = (
-                grainlog_sort_directions[i]
-                == "asc"
-        )
-        selected = (
-                grainlog_gravel[i]
-                or []
-        )
-
-        panel["grainlog_gravel_settings"] = {
-            "Mastersizer":
-                "Mastersizer" in selected,
-
-            "Pipette":
-                "Pipette" in selected,
-
-            "Kehew":
-                "Kehew" in selected,
-
-            "Dry Sieve":
-                "Dry Sieve" in selected,
-        }
-
-    return panel_data
-
-
-@app.callback(
-    Output(
-        "panel-store",
-        "data",
-        allow_duplicate=True,
-    ),
-    [
-        Input(
-            {
-                "type":
-                    "analysis-variables",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "analysis-standardize",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "mastersizer-pca-input",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "cluster-linkage",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "cluster-metric",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "cluster-k",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "pca-color-mode",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "show-loading-arrows",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "pca-report-sections",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "pca-vertical-x-field",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "borehole-vertical-axis",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "hierarchy-summary-stats",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-
-        Input(
-            {
-                "type":
-                    "hierarchy-summary-variables",
-                "index":
-                    ALL,
-            },
-            "value",
-        ),
-    ],
-
-    State(
-        "panel-store",
-        "data",
-    ),
-
-    prevent_initial_call=True,
-)
-def update_multivariate_settings(
-        variables,
-        standardize,
-        mastersizer_pca_inputs,
-        linkage_methods,
-        distance_metrics,
-        cluster_k_values,
-        color_modes,
-        loading_arrow_values,
-        report_section_values,
-        vertical_x_field_values,
-        borehole_vertical_axis_values,
-        hierarchy_summary_stats_values,
-        hierarchy_summary_variable_values,
-        panel_data,
-):
-    if panel_data is None:
-        raise PreventUpdate
-
-    if not (
-            len(panel_data)
-            == len(variables)
-            == len(standardize)
-            == len(mastersizer_pca_inputs)
-            == len(linkage_methods)
-            == len(distance_metrics)
-            == len(cluster_k_values)
-            == len(color_modes)
-            == len(loading_arrow_values)
-            == len(report_section_values)
-            == len(vertical_x_field_values)
-            == len(borehole_vertical_axis_values)
-            == len(hierarchy_summary_stats_values)
-            == len(hierarchy_summary_variable_values)
-    ):
-        raise PreventUpdate
-
-    for i, panel in enumerate(
+    for position, candidate in enumerate(
             panel_data
     ):
 
-        panel[
-            "analysis_variables"
-        ] = (
-                variables[i]
-                or []
-        )
+        if candidate.get(
+                "id"
+        ) == panel_id:
 
-        panel[
-            "analysis_standardize"
-        ] = (
-                "standardize"
-                in (
-                    standardize[i]
-                    or []
-                )
-        )
-
-        panel[
-            "mastersizer_pca_input"
-        ] = (
-                mastersizer_pca_inputs[i]
-                or "frequency"
-        )
-
-        panel[
-            "cluster_linkage"
-        ] = (
-                linkage_methods[i]
-                or "ward"
-        )
-
-        panel[
-            "cluster_metric"
-        ] = (
-                distance_metrics[i]
-                or "euclidean"
-        )
-
-        panel[
-            "cluster_k"
-        ] = int(
-            cluster_k_values[i]
-            or 4
-        )
-
-        panel[
-            "pca_color_mode"
-        ] = (
-                color_modes[i]
-                or "group"
-        )
-
-        panel[
-            "show_loading_arrows"
-        ] = (
-                "arrows"
-                in (
-                    loading_arrow_values[i]
-                    or []
-                )
-        )
-
-        panel[
-            "pca_report_sections"
-        ] = (
-                report_section_values[i]
-                or []
-        )
-
-        panel[
-            "pca_vertical_x_field"
-        ] = (
-                vertical_x_field_values[i]
-                or "BoreholeID"
-        )
-
-        panel[
-            "borehole_vertical_axis"
-        ] = (
-                borehole_vertical_axis_values[i]
-                or "depth"
-        )
-
-        # Legacy compatibility for saved-state logic and any
-        # older code that still checks this field.
-        panel[
-            "show_depth_borehole"
-        ] = (
-                "depth"
-                in panel[
-                    "pca_report_sections"
-                ]
-        )
-
-        panel[
-            "hierarchy_summary_stats"
-        ] = (
-                hierarchy_summary_stats_values[i]
-                or []
-        )
-
-        panel[
-            "hierarchy_summary_variables"
-        ] = (
-                hierarchy_summary_variable_values[i]
-                or []
-        )
-
-        # Ward clustering requires Euclidean distance.
-        if (
-                panel[
-                    "cluster_linkage"
-                ]
-                == "ward"
-        ):
-
-            panel[
-                "cluster_metric"
-            ] = (
-                "euclidean"
-            )
-
-    return panel_data
-
-
-@app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
-    Input(
-        {"type": "chart-type", "index": ALL},
-        "value",
-    ),
-    State("panel-store", "data"),
-    prevent_initial_call=True,
-)
-def update_chart_types(
-        chart_types,
-        panel_data,
-):
-    if (
-            panel_data is None
-            or chart_types is None
-            or len(panel_data) != len(chart_types)
-    ):
-        raise PreventUpdate
-
-    for panel, chart_type in zip(panel_data, chart_types):
-
-        previous_chart_type = panel.get(
-            "chart_type"
-        )
-
-        # A Mastersizer PCA curve report is not useful when
-        # every curve summary is hidden. Turn the mean on the
-        # first time a panel switches into this chart type.
-        # The user can turn it back off afterward.
-        if (
-                chart_type
-                == "PCA - Mastersizer Only"
-                and previous_chart_type
-                != "PCA - Mastersizer Only"
-        ):
-            panel[
-                "show_mean"
-            ] = True
-
-        panel["chart_type"] = chart_type
-
-    return panel_data
-
-
-@app.callback(
-    Output("panel-store", "data", allow_duplicate=True),
-    [
-        Input(
-            {
-                "type": "mastersizer-break",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input(
-            {
-                "type": "mastersizer-sand-break",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input(
-            {
-                "type": "pipette-break",
-                "index": ALL,
-            },
-            "value",
-        ),
-        Input(
-            {
-                "type": "show-usda",
-                "index": ALL,
-            },
-            "value",
-        ),
-    ],
-    State("panel-store", "data"),
-    prevent_initial_call=True,
-)
-def update_ternary_settings(
-        mastersizer_breaks,
-        mastersizer_sand_breaks,
-        pipette_breaks,
-        show_usda,
-        panel_data,
-):
-    if (
-            panel_data is None
-            or mastersizer_breaks is None
-            or pipette_breaks is None
-            or len(panel_data) != len(mastersizer_breaks)
-            or len(panel_data) != len(pipette_breaks)
-    ):
-        raise PreventUpdate
-
-    for i, panel in enumerate(panel_data):
-        panel["mastersizer_break"] = (
-            mastersizer_breaks[i]
-        )
-
-        panel["mastersizer_sand_break"] = (
-            mastersizer_sand_breaks[i]
-        )
-
-        panel["pipette_break"] = (
-            pipette_breaks[i]
-        )
-
-        panel["show_usda_triangle"] = (
-                "usda" in (show_usda[i] or [])
-        )
-
-    return panel_data
-
-
-@app.callback(
-    Output(
-        "panel-store",
-        "data",
-        allow_duplicate=True,
-    ),
-
-    Input(
-        {
-            "type": "toggle-controls",
-            "index": ALL,
-        },
-        "n_clicks",
-    ),
-
-    Input(
-        {
-            "type": "toggle-graph-options",
-            "index": ALL,
-        },
-        "n_clicks",
-    ),
-
-    Input(
-        {
-            "type": "toggle-override-options",
-            "index": ALL,
-        },
-        "n_clicks",
-    ),
-
-    State(
-        "panel-store",
-        "data",
-    ),
-
-    prevent_initial_call=True,
-)
-def toggle_panel_sections(
-        controls_clicks,
-        graph_clicks,
-        override_clicks,
-        panel_data,
-):
-    trigger = callback_context.triggered_id
-
-    if trigger is None:
-        return panel_data
-
-    panel_id = trigger["index"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
-    )
+            panel_position = position
+            panel = candidate.copy()
+            break
 
     if panel is None:
         raise PreventUpdate
 
-    if trigger["type"] == "toggle-controls":
+    global_samples = (
+        global_samples
+        or []
+    )
 
-        panel["controls_open"] = (
-            not panel["controls_open"]
+    layout_lookup = {
+        item["i"]: item
+        for item in (
+            layout_data
+            or []
+        )
+    }
+
+    chart_type = panel.get(
+        "chart_type",
+        "PSD Undersize",
+    )
+
+    # Hidden-but-always-active PCA behavior.
+    if chart_type == "PCA":
+        panel[
+            "show_legend"
+        ] = True
+
+    if (
+            chart_type
+            == "PCA - Mastersizer Only"
+    ):
+        panel[
+            "show_mean"
+        ] = True
+
+    layout = layout_lookup.get(
+        str(
+            panel_position
+        )
+    )
+
+    if layout:
+        panel[
+            "layout"
+        ] = layout
+
+    panel_samples = get_panel_samples(
+        panel,
+        global_samples,
+        gsa_df,
+    )
+
+    panel[
+        "grouped_samples"
+    ] = None
+
+    if (
+            panel.get(
+                "use_custom_groups",
+                False,
+            )
+            and has_custom_groups(
+                panel
+            )
+    ):
+
+        subset = gsa_df[
+            gsa_df[
+                "GSA_ID"
+            ]
+            .astype(str)
+            .isin(
+                panel_samples
+            )
+        ]
+
+        panel[
+            "grouped_samples"
+        ] = build_custom_groups(
+            panel.get(
+                "custom_groups",
+                [],
+            ),
+            subset,
         )
 
-    elif trigger["type"] == "toggle-graph-options":
+    if chart_type == "PSD Undersize":
 
-        panel["graph_options_open"] = (
-            not panel["graph_options_open"]
+        fig = make_psd_plot(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            panel_samples,
+            panel,
         )
 
-    elif trigger["type"] == "toggle-override-options":
+    elif chart_type == "PSD Frequency":
 
-        panel["override_options_open"] = (
-            not panel["override_options_open"]
+        fig = make_frequency_plot(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            panel_samples,
+            panel,
         )
 
-    return panel_data
+    elif chart_type == "Ternary":
+
+        fig = make_ternary_plot(
+            gsa_df,
+            mmes_df,
+            panel_samples,
+            panel,
+        )
+
+    elif chart_type == "Grain Size Log":
+
+        fig = make_grain_log(
+            gsa_df,
+            mmes_df,
+            panel_samples,
+            panel,
+        )
+
+    elif chart_type == "PCA":
+
+        fig = make_pca_plot(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            panel_samples,
+            panel,
+        )
+
+    elif (
+            chart_type
+            == "PCA - Mastersizer Only"
+    ):
+
+        fig = make_mastersizer_pca_plot(
+            gsa_df,
+            mmes_df,
+            mmes_rs_df,
+            panel_samples,
+            panel,
+        )
+
+    elif (
+            chart_type
+            == "Hierarchical Clustering"
+    ):
+
+        fig = make_hierarchical_plot(
+            gsa_df,
+            panel_samples,
+            panel,
+        )
+
+    elif (
+            chart_type
+            == "Sample Information"
+    ):
+
+        fig = make_sample_information(
+            gsa_df,
+            panel_samples,
+        )
+
+    else:
+
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        fig.update_layout(
+            title=(
+                f"{chart_type} Coming Soon"
+            )
+        )
+
+    if (
+            chart_type
+            == "Sample Information"
+    ):
+
+        return html.Div(
+            fig,
+            style={
+                "flex": "1 1 auto",
+                "height": "100%",
+                "display": "flex",
+                "flexDirection": "column",
+                "minHeight": 0,
+            },
+        )
+
+    if (
+            chart_type
+            == "Grain Size Log"
+    ):
+
+        return dcc.Graph(
+            figure=fig,
+            responsive=False,
+            style={
+                "width": "100%",
+            },
+            config={
+                "responsive": True,
+                "toImageButtonOptions": {
+                    "format": "png",
+                    "filename": (
+                        f"MGS_GSA_"
+                        f"{chart_type.replace(' ', '_')}"
+                    ),
+                    "scale": 2,
+                },
+            },
+        )
+
+    if chart_type in [
+        "PCA",
+        "PCA - Mastersizer Only",
+    ]:
+
+        return html.Div(
+            fig,
+            style={
+                "height": "100%",
+                "width": "100%",
+                "overflowY": "auto",
+                "overflowX": "auto",
+                "minWidth": 0,
+                "boxSizing": "border-box",
+            },
+        )
+
+    return dcc.Graph(
+        figure=fig,
+        responsive=True,
+        style={
+            "height": "100%",
+            "width": "100%",
+        },
+        config={
+            "responsive": True,
+            "toImageButtonOptions": {
+                "format": "png",
+                "filename": (
+                    f"MGS_GSA_"
+                    f"{chart_type.replace(' ', '_')}"
+                ),
+                "scale": 2,
+            },
+        },
+    )
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "chart-type",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "chart-type",
+            "index": MATCH,
+        },
+        "id",
+    ),
+    State("panel-store", "data"),
+    State("panel-applied-store", "data"),
+    prevent_initial_call=True,
+)
+def update_chart_types(
+        chart_type,
+        component_id,
+        panel_data,
+        applied_data,
+):
+    if chart_type is None or component_id is None:
+        raise PreventUpdate
+
+    panel_id = component_id["index"]
+
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
+    )
+    applied_index, applied_panel = _get_panel_copy(
+        applied_data,
+        panel_id,
+    )
+
+    # A dynamically-created dropdown can briefly exist before both
+    # stores have completed the Add Panel update. Never let that
+    # transient state replace either store.
+    if panel is None or applied_panel is None:
+        raise PreventUpdate
+
+    if (
+            panel.get("chart_type") == chart_type
+            and applied_panel.get("chart_type") == chart_type
+    ):
+        raise PreventUpdate
+
+    for target in (
+            panel,
+            applied_panel,
+    ):
+        target["chart_type"] = chart_type
+
+        if chart_type == "PCA":
+            target["show_legend"] = True
+
+        if chart_type == "PCA - Mastersizer Only":
+            target["show_mean"] = True
+
+    panel_patch = Patch()
+    panel_patch[panel_index] = panel
+
+    applied_patch = Patch()
+    applied_patch[applied_index] = applied_panel
+
+    return panel_patch, applied_patch
+
+
 
 
 @app.callback(
@@ -3708,50 +3323,17 @@ def toggle_group_by_visibility(
     ),
     Input(
         {
-            "type": "use-custom-groups",
-            "index": ALL,
-        },
-        "value",
-    ),
-    State(
-        "panel-store",
-        "data",
-    ),
-    prevent_initial_call=True,
-)
-def update_custom_group_toggle(
-        values,
-        panel_data,
-):
-    for panel, value in zip(
-            panel_data,
-            values,
-    ):
-        use_custom = (
-                "custom"
-                in (value or [])
-        )
-
-        panel["use_custom_groups"] = use_custom
-
-        if use_custom:
-            panel["group_by"] = "None"
-
-    return panel_data
-
-
-@app.callback(
-    Output(
-        "panel-store",
-        "data",
-        allow_duplicate=True,
-    ),
-    Input(
-        {
             "type": "add-custom-group",
-            "index": ALL,
+            "index": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "add-custom-group",
+            "index": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -3760,48 +3342,199 @@ def update_custom_group_toggle(
     prevent_initial_call=True,
 )
 def add_custom_group(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    trigger = (
-        callback_context
-        .triggered_id
-    )
-
-    if trigger is None:
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    panel_id = trigger["index"]
+    panel_id = component_id["index"]
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
+    )
 
-    for panel in panel_data:
+    if panel is None:
+        raise PreventUpdate
 
-        if (
-                panel["id"]
-                != panel_id
-        ):
-            continue
-
-        groups = panel.setdefault(
+    groups = copy.deepcopy(
+        panel.get(
             "custom_groups",
             [],
         )
+    )
 
-        if len(groups) >= 20:
-            break
+    if len(groups) >= 20:
+        raise PreventUpdate
 
-        groups.append(
-            {
-                "name":
-                    f"Group {len(groups) + 1}",
+    groups.append(
+        {
+            "name": f"Group {len(groups) + 1}",
+            "filters": [],
+            "pending_filters": [],
+        }
+    )
 
-                "filters": [],
-                "pending_filters": [],
-            }
+    panel["custom_groups"] = groups
+
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
+
+
+def _build_custom_group_filter_rows(
+        panel_id,
+        group_index,
+        filters,
+):
+    rows = []
+
+    for i, clause in enumerate(
+            filters
+            or []
+    ):
+
+        if (
+                clause["operator"]
+                == "BETWEEN"
+        ):
+
+            values = (
+                f"{clause['value'][0]}"
+                f" and "
+                f"{clause['value'][1]}"
+            )
+
+        elif isinstance(
+                clause["value"],
+                list,
+        ):
+
+            values = ", ".join(
+                map(
+                    str,
+                    clause["value"],
+                )
+            )
+
+        else:
+
+            values = str(
+                clause["value"]
+            )
+
+        field_name = (
+                FILTER_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
+                or
+                NUMERIC_FIELDS.get(
+                    clause["field"],
+                    clause["field"],
+                )
         )
-        print(callback_context.triggered_id)
-        break
 
-    return panel_data
+        rows.append(
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Div(
+                                dcc.Dropdown(
+                                    id={
+                                        "type":
+                                            "custom-group-filter-logic",
+                                        "panel":
+                                            panel_id,
+                                        "group":
+                                            group_index,
+                                        "index":
+                                            i,
+                                    },
+                                    options=[
+                                        {
+                                            "label":
+                                                "AND",
+                                            "value":
+                                                "AND",
+                                        },
+                                        {
+                                            "label":
+                                                "OR",
+                                            "value":
+                                                "OR",
+                                        },
+                                    ],
+                                    value=clause.get(
+                                        "logic",
+                                        "AND",
+                                    ),
+                                    clearable=False,
+                                    style={
+                                        "width":
+                                            "90px",
+                                    },
+                                ),
+                                style={
+                                    "display":
+                                        "none"
+                                        if i == 0
+                                        else "block",
+                                },
+                            ),
+
+                            html.Span(
+                                f"{i + 1}. "
+                                f"{field_name} "
+                                f"{clause['operator']} "
+                                f"{values}"
+                            ),
+                        ],
+                        style={
+                            "display":
+                                "flex",
+                            "flexDirection":
+                                "column",
+                            "flex":
+                                1,
+                        },
+                    ),
+
+                    html.Button(
+                        "✕",
+                        id={
+                            "type":
+                                "remove-custom-group-filter",
+                            "panel":
+                                panel_id,
+                            "group":
+                                group_index,
+                            "index":
+                                i,
+                        },
+                        n_clicks=0,
+                        style={
+                            "marginLeft":
+                                "10px",
+                            "color":
+                                "red",
+                        },
+                    ),
+                ],
+                style={
+                    "display":
+                        "flex",
+                    "alignItems":
+                        "center",
+                    "marginBottom":
+                        "5px",
+                },
+            )
+        )
+
+    return rows
 
 
 @app.callback(
@@ -4083,6 +3816,16 @@ def render_custom_groups(
                             "group":
                                 i,
                         },
+                        children=(
+                            _build_custom_group_filter_rows(
+                                panel_id,
+                                i,
+                                group.get(
+                                    "pending_filters",
+                                    [],
+                                ),
+                            )
+                        ),
                         style={
                             "marginTop": "10px",
                         },
@@ -4189,6 +3932,9 @@ def add_custom_group_filter(
         minimum_value,
         maximum_value,
 ):
+    if not n_clicks:
+        raise PreventUpdate
+
     trigger = callback_context.triggered_id
 
     if trigger is None:
@@ -4197,59 +3943,50 @@ def add_custom_group_filter(
     panel_id = trigger["panel"]
     group_index = trigger["group"]
 
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
     if group_index >= len(groups):
         raise PreventUpdate
 
-    group = groups[group_index]
-
-    filters = group.get(
-        "pending_filters",
-        []
+    filters = copy.deepcopy(
+        groups[group_index].get(
+            "pending_filters",
+            [],
+        )
     )
 
     if operator == "CONTAINS":
-
         value = text_value
 
     elif field in NUMERIC_FIELDS:
-
         if operator == "BETWEEN":
-
             value = [
                 minimum_value,
                 maximum_value,
             ]
-
         else:
-
             value = number_value
 
     else:
-
         value = dropdown_value
 
     if field is None:
         raise PreventUpdate
 
     if operator == "BETWEEN":
-
         if (
                 value[0] is None
                 or value[1] is None
@@ -4263,225 +4000,27 @@ def add_custom_group_filter(
     ]:
         raise PreventUpdate
 
-    new_clause = {
-        "field": field,
-        "operator": operator,
-        "value": value,
-        "logic": (
-            "AND"
-            if filters
-            else None
-        ),
-    }
-
     filters.append(
-        new_clause
-    )
-
-    group["pending_filters"] = filters
-
-    return panel_data
-
-
-@app.callback(
-    Output(
         {
-            "type": "custom-group-filter-list",
-            "panel": MATCH,
-            "group": MATCH,
-        },
-        "children",
-    ),
-    Input(
-        "panel-store",
-        "data",
-    ),
-    State(
-        {
-            "type": "custom-group-filter-list",
-            "panel": MATCH,
-            "group": MATCH,
-        },
-        "id",
-    ),
-)
-def show_custom_group_filter_list(
-        panel_data,
-        component_id,
-):
-    panel_id = component_id["panel"]
-    group_index = component_id["group"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+            "field": field,
+            "operator": operator,
+            "value": value,
+            "logic": (
+                "AND"
+                if filters
+                else None
+            ),
+        }
     )
 
-    if panel is None:
-        raise PreventUpdate
+    groups[group_index]["pending_filters"] = filters
+    panel["custom_groups"] = groups
 
-    groups = panel.get(
-        "custom_groups",
-        []
-    )
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
-    if group_index >= len(groups):
-        raise PreventUpdate
 
-    filters = groups[group_index].get(
-        "pending_filters",
-        []
-    )
-
-    if not filters:
-        return []
-
-    rows = []
-
-    for i, clause in enumerate(filters):
-
-        if clause["operator"] == "BETWEEN":
-
-            values = (
-                f"{clause['value'][0]}"
-                f" and "
-                f"{clause['value'][1]}"
-            )
-
-        elif isinstance(
-                clause["value"],
-                list,
-        ):
-
-            values = ", ".join(
-                map(
-                    str,
-                    clause["value"]
-                )
-            )
-
-        else:
-
-            values = str(
-                clause["value"]
-            )
-
-        field_name = (
-                FILTER_FIELDS.get(
-                    clause["field"],
-                    clause["field"],
-                )
-                or
-                NUMERIC_FIELDS.get(
-                    clause["field"],
-                    clause["field"],
-                )
-        )
-
-        rows.append(
-            html.Div(
-                [
-                    html.Div(
-                        [
-
-                            html.Div(
-                                dcc.Dropdown(
-                                    id={
-                                        "type":
-                                            "custom-group-filter-logic",
-                                        "panel":
-                                            panel_id,
-                                        "group":
-                                            group_index,
-                                        "index":
-                                            i,
-                                    },
-                                    options=[
-                                        {
-                                            "label":
-                                                "AND",
-                                            "value":
-                                                "AND",
-                                        },
-                                        {
-                                            "label":
-                                                "OR",
-                                            "value":
-                                                "OR",
-                                        },
-                                    ],
-                                    value=clause.get(
-                                        "logic",
-                                        "AND",
-                                    ),
-                                    clearable=False,
-                                    style={
-                                        "width":
-                                            "90px",
-                                    },
-                                ),
-                                style={
-                                    "display":
-                                        "none"
-                                        if i == 0
-                                        else "block",
-                                },
-                            ),
-
-                            html.Span(
-                                f"{i + 1}. "
-                                f"{field_name} "
-                                f"{clause['operator']} "
-                                f"{values}"
-                            ),
-                        ],
-                        style={
-                            "display":
-                                "flex",
-                            "flexDirection":
-                                "column",
-                            "flex":
-                                1,
-                        },
-                    ),
-
-                    html.Button(
-                        "✕",
-                        id={
-                            "type":
-                                "remove-custom-group-filter",
-                            "panel":
-                                panel_id,
-                            "group":
-                                group_index,
-                            "index":
-                                i,
-                        },
-                        n_clicks=0,
-                        style={
-                            "marginLeft":
-                                "10px",
-                            "color":
-                                "red",
-                        },
-                    ),
-                ],
-                style={
-                    "display":
-                        "flex",
-                    "alignItems":
-                        "center",
-                    "marginBottom":
-                        "5px",
-                },
-            )
-        )
-
-    return rows
 
 
 @app.callback(
@@ -4493,11 +4032,20 @@ def show_custom_group_filter_list(
     Input(
         {
             "type": "remove-custom-group-filter",
-            "panel": ALL,
-            "group": ALL,
-            "index": ALL,
+            "panel": MATCH,
+            "group": MATCH,
+            "index": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "remove-custom-group-filter",
+            "panel": MATCH,
+            "group": MATCH,
+            "index": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -4506,60 +4054,52 @@ def show_custom_group_filter_list(
     prevent_initial_call=True,
 )
 def remove_custom_group_filter(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
+    clause_index = component_id["index"]
 
-    if trigger is None:
-        raise PreventUpdate
-
-    panel_id = trigger["panel"]
-    group_index = trigger["group"]
-    clause_index = trigger["index"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
     if group_index >= len(groups):
         raise PreventUpdate
 
-    filters = groups[group_index].get(
-        "pending_filters",
-        []
+    filters = copy.deepcopy(
+        groups[group_index].get(
+            "pending_filters",
+            [],
+        )
     )
 
     if clause_index >= len(filters):
         raise PreventUpdate
 
-    new_filters = filters.copy()
+    filters.pop(clause_index)
+    groups[group_index]["pending_filters"] = filters
+    panel["custom_groups"] = groups
 
-    new_filters.pop(
-        clause_index
-    )
-
-    groups[group_index][
-        "pending_filters"
-    ] = new_filters
-
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -4571,11 +4111,20 @@ def remove_custom_group_filter(
     Input(
         {
             "type": "custom-group-filter-logic",
-            "panel": ALL,
-            "group": ALL,
-            "index": ALL,
+            "panel": MATCH,
+            "group": MATCH,
+            "index": MATCH,
         },
         "value",
+    ),
+    State(
+        {
+            "type": "custom-group-filter-logic",
+            "panel": MATCH,
+            "group": MATCH,
+            "index": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -4584,63 +4133,58 @@ def remove_custom_group_filter(
     prevent_initial_call=True,
 )
 def update_custom_group_filter_logic(
-        logic_values,
+        logic_value,
+        component_id,
         panel_data,
 ):
-    trigger = callback_context.triggered_id
-
-    if trigger is None:
+    if component_id is None:
         raise PreventUpdate
 
-    panel_id = trigger["panel"]
-    group_index = trigger["group"]
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
+    clause_index = component_id["index"]
 
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    if clause_index == 0:
+        raise PreventUpdate
+
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
     if group_index >= len(groups):
         raise PreventUpdate
 
-    filters = groups[group_index].get(
-        "pending_filters",
-        []
+    filters = copy.deepcopy(
+        groups[group_index].get(
+            "pending_filters",
+            [],
+        )
     )
 
-    if not filters:
+    if clause_index >= len(filters):
         raise PreventUpdate
 
-    new_filters = copy.deepcopy(
-        filters
+    filters[clause_index]["logic"] = (
+        logic_value
+        or "AND"
     )
+    groups[group_index]["pending_filters"] = filters
+    panel["custom_groups"] = groups
 
-    for i, value in enumerate(
-            logic_values
-    ):
-        if i == 0:
-            continue
-
-        if i < len(new_filters):
-            new_filters[i]["logic"] = value
-
-    groups[group_index][
-        "pending_filters"
-    ] = new_filters
-
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -4685,27 +4229,25 @@ def apply_custom_group_filters(
         group_name,
         component_id,
 ):
-    if not n_clicks:
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
     panel_id = component_id["panel"]
     group_index = component_id["group"]
 
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
     if group_index >= len(groups):
@@ -4713,27 +4255,24 @@ def apply_custom_group_filters(
 
     group = groups[group_index]
 
-    # Save the group name
     if (
             group_name is not None
             and str(group_name).strip()
     ):
-        group["name"] = (
-            str(group_name)
-            .strip()
-        )
+        group["name"] = str(group_name).strip()
 
-    # Save the filters
     group["filters"] = copy.deepcopy(
         group.get(
             "pending_filters",
-            []
+            [],
         )
     )
-    print(group["pending_filters"])
-    print(group["filters"])
 
-    return panel_data
+    panel["custom_groups"] = groups
+
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -4745,10 +4284,18 @@ def apply_custom_group_filters(
     Input(
         {
             "type": "clear-custom-group-filter",
-            "panel": ALL,
-            "group": ALL,
+            "panel": MATCH,
+            "group": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "clear-custom-group-filter",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -4757,49 +4304,41 @@ def apply_custom_group_filters(
     prevent_initial_call=True,
 )
 def clear_custom_group_filters(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
 
-    if trigger is None:
-        raise PreventUpdate
-
-    panel_id = trigger["panel"]
-    group_index = trigger["group"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
     if group_index >= len(groups):
         raise PreventUpdate
 
-    groups[group_index][
-        "pending_filters"
-    ] = []
+    groups[group_index]["pending_filters"] = []
+    groups[group_index]["filters"] = []
+    panel["custom_groups"] = groups
 
-    groups[group_index][
-        "filters"
-    ] = []
-
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
 
 
 @app.callback(
@@ -4811,10 +4350,18 @@ def clear_custom_group_filters(
     Input(
         {
             "type": "remove-custom-group",
-            "panel": ALL,
-            "group": ALL,
+            "panel": MATCH,
+            "group": MATCH,
         },
         "n_clicks",
+    ),
+    State(
+        {
+            "type": "remove-custom-group",
+            "panel": MATCH,
+            "group": MATCH,
+        },
+        "id",
     ),
     State(
         "panel-store",
@@ -4823,46 +4370,558 @@ def clear_custom_group_filters(
     prevent_initial_call=True,
 )
 def remove_custom_group(
-        clicks,
+        n_clicks,
+        component_id,
         panel_data,
 ):
-    if not any(clicks):
+    if not n_clicks or component_id is None:
         raise PreventUpdate
 
-    trigger = callback_context.triggered_id
+    panel_id = component_id["panel"]
+    group_index = component_id["group"]
 
-    if trigger is None:
-        raise PreventUpdate
-
-    panel_id = trigger["panel"]
-    group_index = trigger["group"]
-
-    panel = next(
-        (
-            p
-            for p in panel_data
-            if p["id"] == panel_id
-        ),
-        None,
+    panel_index, panel = _get_panel_copy(
+        panel_data,
+        panel_id,
     )
 
     if panel is None:
         raise PreventUpdate
 
-    groups = panel.get(
-        "custom_groups",
-        []
+    groups = copy.deepcopy(
+        panel.get(
+            "custom_groups",
+            [],
+        )
     )
 
-    if (
-            group_index
-            >= len(groups)
-    ):
+    if group_index >= len(groups):
         raise PreventUpdate
 
     groups.pop(group_index)
+    panel["custom_groups"] = groups
 
-    return panel_data
+    patch = Patch()
+    patch[panel_index] = panel
+    return patch
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-applied-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "apply-panel-options",
+            "index": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        {
+            "type": "apply-panel-options",
+            "index": MATCH,
+        },
+        "id",
+    ),
+    State(
+        {
+            "type": "display-options",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "group-by",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "x-axis",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "reference-breaks",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "grainlog-sort-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "grainlog-sort-direction",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "grainlog-gravel",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "analysis-variables",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "analysis-standardize",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "mastersizer-pca-input",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "cluster-linkage",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "cluster-metric",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "cluster-k",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "pca-color-mode",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "show-loading-arrows",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "pca-report-sections",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "pca-vertical-x-field",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "borehole-vertical-axis",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "hierarchy-summary-stats",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "hierarchy-summary-variables",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "mastersizer-break",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "mastersizer-sand-break",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "pipette-break",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "show-usda",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "use-custom-groups",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        {
+            "type": "use-global",
+            "index": MATCH,
+        },
+        "value",
+    ),
+    State(
+        "panel-store",
+        "data",
+    ),
+    State(
+        "panel-applied-store",
+        "data",
+    ),
+    prevent_initial_call=True,
+)
+def apply_panel_options(
+        n_clicks,
+        component_id,
+        display_options,
+        group_by,
+        x_axis,
+        reference_breaks,
+        grainlog_sort_field,
+        grainlog_sort_direction,
+        grainlog_gravel,
+        analysis_variables,
+        analysis_standardize,
+        mastersizer_pca_input,
+        cluster_linkage,
+        cluster_metric,
+        cluster_k,
+        pca_color_mode,
+        show_loading_arrows,
+        pca_report_sections,
+        pca_vertical_x_field,
+        borehole_vertical_axis,
+        hierarchy_summary_stats,
+        hierarchy_summary_variables,
+        mastersizer_break,
+        mastersizer_sand_break,
+        pipette_break,
+        show_usda,
+        use_custom_groups,
+        use_global,
+        draft_data,
+        applied_data,
+):
+    if not n_clicks or component_id is None:
+        raise PreventUpdate
+
+    panel_id = component_id["index"]
+
+    draft_index, panel = _get_panel_copy(
+        draft_data,
+        panel_id,
+    )
+    applied_index, applied_panel = _get_panel_copy(
+        applied_data,
+        panel_id,
+    )
+
+    if panel is None or applied_panel is None:
+        raise PreventUpdate
+
+    chart_type = panel.get(
+        "chart_type",
+        applied_panel.get(
+            "chart_type",
+            "PSD Undersize",
+        ),
+    )
+
+    selected_display = display_options or []
+
+    panel["show_legend"] = (
+        True
+        if chart_type == "PCA"
+        else "legend" in selected_display
+    )
+    panel["show_labels"] = "labels" in selected_display
+    panel["show_samples"] = "samples" in selected_display
+    panel["show_mean"] = (
+        True
+        if chart_type == "PCA - Mastersizer Only"
+        else "mean" in selected_display
+    )
+    panel["show_grainlog_mean"] = (
+        "grainlog_mean" in selected_display
+    )
+    panel["show_std1"] = "std1" in selected_display
+    panel["show_std2"] = "std2" in selected_display
+    panel["show_std3"] = "std3" in selected_display
+    panel["show_centroids"] = "centroids" in selected_display
+    panel["show_covariance"] = "covariance" in selected_display
+
+    panel["group_by"] = group_by or "None"
+    panel["x_axis"] = x_axis or "log"
+
+    selected_breaks = reference_breaks or []
+    panel["show_break_2"] = "2" in selected_breaks
+    panel["show_break_4"] = "4" in selected_breaks
+    panel["show_break_8"] = "8" in selected_breaks
+    panel["show_break_50"] = "50" in selected_breaks
+    panel["show_break_62_5"] = "62.5" in selected_breaks
+
+    panel["grainlog_sort_field"] = (
+        grainlog_sort_field
+        if grainlog_sort_field is not None
+        else panel.get("grainlog_sort_field", "None")
+    )
+    panel["grainlog_sort_ascending"] = (
+        (grainlog_sort_direction or "asc") == "asc"
+    )
+
+    selected_gravel = grainlog_gravel or []
+    panel["grainlog_gravel_settings"] = {
+        "Mastersizer": "Mastersizer" in selected_gravel,
+        "Pipette": "Pipette" in selected_gravel,
+        "Kehew": "Kehew" in selected_gravel,
+        "Dry Sieve": "Dry Sieve" in selected_gravel,
+    }
+
+    panel["analysis_variables"] = analysis_variables or []
+    panel["analysis_standardize"] = (
+        "standardize" in (analysis_standardize or [])
+    )
+    panel["mastersizer_pca_input"] = (
+        mastersizer_pca_input or "frequency"
+    )
+    panel["cluster_linkage"] = cluster_linkage or "ward"
+    panel["cluster_metric"] = cluster_metric or "euclidean"
+    panel["cluster_k"] = int(cluster_k or 4)
+    panel["pca_color_mode"] = pca_color_mode or "group"
+    panel["show_loading_arrows"] = (
+        "arrows" in (show_loading_arrows or [])
+    )
+    panel["pca_report_sections"] = pca_report_sections or []
+    panel["pca_vertical_x_field"] = (
+        pca_vertical_x_field or "BoreholeID"
+    )
+    panel["borehole_vertical_axis"] = (
+        borehole_vertical_axis or "depth"
+    )
+    panel["show_depth_borehole"] = (
+        "depth" in panel["pca_report_sections"]
+    )
+    panel["hierarchy_summary_stats"] = (
+        hierarchy_summary_stats or []
+    )
+    panel["hierarchy_summary_variables"] = (
+        hierarchy_summary_variables or []
+    )
+
+    if panel["cluster_linkage"] == "ward":
+        panel["cluster_metric"] = "euclidean"
+
+    if mastersizer_break is not None:
+        panel["mastersizer_break"] = mastersizer_break
+
+    if mastersizer_sand_break is not None:
+        panel["mastersizer_sand_break"] = mastersizer_sand_break
+
+    if pipette_break is not None:
+        panel["pipette_break"] = pipette_break
+
+    panel["show_usda_triangle"] = (
+        "usda" in (show_usda or [])
+    )
+
+    panel["use_custom_groups"] = (
+        "custom" in (use_custom_groups or [])
+    )
+
+    if panel["use_custom_groups"]:
+        panel["group_by"] = "None"
+
+    panel["use_global"] = (
+        "global" in (use_global or [])
+    )
+
+    # Commit exactly this one panel. Query-builder state already lives
+    # in the draft panel and is preserved by using that panel as base.
+    applied_panel = copy.deepcopy(panel)
+
+    draft_patch = Patch()
+    draft_patch[draft_index] = panel
+
+    applied_patch = Patch()
+    applied_patch[applied_index] = applied_panel
+
+    return draft_patch, applied_patch
+
+
+def _cancel_one_panel(
+        panel_id,
+        draft_data,
+        applied_data,
+        revision,
+):
+    draft_index = _find_panel_index(
+        draft_data,
+        panel_id,
+    )
+    applied_index, applied_panel = _get_panel_copy(
+        applied_data,
+        panel_id,
+    )
+
+    if draft_index is None or applied_panel is None:
+        raise PreventUpdate
+
+    draft_patch = Patch()
+    draft_patch[draft_index] = applied_panel
+
+    return (
+        draft_patch,
+        int(revision or 0) + 1,
+    )
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-reset-revision",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "cancel-panel-options",
+            "index": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        {
+            "type": "cancel-panel-options",
+            "index": MATCH,
+        },
+        "id",
+    ),
+    State("panel-store", "data"),
+    State("panel-applied-store", "data"),
+    State("panel-reset-revision", "data"),
+    prevent_initial_call=True,
+)
+def cancel_panel_options(
+        n_clicks,
+        component_id,
+        draft_data,
+        applied_data,
+        revision,
+):
+    if not n_clicks or component_id is None:
+        raise PreventUpdate
+
+    return _cancel_one_panel(
+        component_id["index"],
+        draft_data,
+        applied_data,
+        revision,
+    )
+
+
+@app.callback(
+    Output(
+        "panel-store",
+        "data",
+        allow_duplicate=True,
+    ),
+    Output(
+        "panel-reset-revision",
+        "data",
+        allow_duplicate=True,
+    ),
+    Input(
+        {
+            "type": "cancel-panel-options-x",
+            "index": MATCH,
+        },
+        "n_clicks",
+    ),
+    State(
+        {
+            "type": "cancel-panel-options-x",
+            "index": MATCH,
+        },
+        "id",
+    ),
+    State("panel-store", "data"),
+    State("panel-applied-store", "data"),
+    State("panel-reset-revision", "data"),
+    prevent_initial_call=True,
+)
+def cancel_panel_options_x(
+        n_clicks,
+        component_id,
+        draft_data,
+        applied_data,
+        revision,
+):
+    if not n_clicks or component_id is None:
+        raise PreventUpdate
+
+    return _cancel_one_panel(
+        component_id["index"],
+        draft_data,
+        applied_data,
+        revision,
+    )
 
 
 @app.callback(
@@ -4880,7 +4939,7 @@ def remove_custom_group(
         },
         "n_clicks",
     ),
-    State("panel-store", "data"),
+    State("panel-applied-store", "data"),
     State("global-samples", "value"),
     prevent_initial_call=True,
 )

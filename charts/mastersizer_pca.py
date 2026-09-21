@@ -696,6 +696,7 @@ def _make_curve_small_multiples(
         show_std1,
         show_std2,
         show_std3,
+        reference_breaks,
 ):
     """
     One mini native-data PSD/Frequency summary per current
@@ -747,8 +748,8 @@ def _make_curve_small_multiples(
         vertical_spacing = 0.0
     else:
         vertical_spacing = min(
-            0.038,
-            0.18
+            0.052,
+            0.23
             / (
                 n_rows
                 - 1
@@ -767,7 +768,7 @@ def _make_curve_small_multiples(
         ],
         # Four-across layout with enough horizontal separation
         # to keep neighboring axes readable without wasting space.
-        horizontal_spacing=0.055,
+        horizontal_spacing=0.075,
         vertical_spacing=
             vertical_spacing,
     )
@@ -1063,6 +1064,22 @@ def _make_curve_small_multiples(
                 col=col_num,
             )
 
+        for break_value in (
+                reference_breaks
+                or []
+        ):
+
+            fig.add_vline(
+                x=break_value,
+                line_dash="dash",
+                line_width=1,
+                line_color=(
+                    "rgba(90,90,90,0.65)"
+                ),
+                row=row_num,
+                col=col_num,
+            )
+
         fig.update_xaxes(
             type="log",
             tickfont=dict(
@@ -1103,8 +1120,8 @@ def _make_curve_small_multiples(
     # Middle-ground row height: compact, but with enough
     # room for subplot titles and log-scale x-axis labels.
     figure_height = max(
-        520,
-        320
+        540,
+        345
         * n_rows,
     )
 
@@ -1939,6 +1956,48 @@ def make_mastersizer_pca_plot(
                 "show_std3",
                 False,
             ),
+            [
+                value
+                for value, enabled
+                in [
+                    (
+                        2,
+                        panel.get(
+                            "show_break_2",
+                            False,
+                        ),
+                    ),
+                    (
+                        4,
+                        panel.get(
+                            "show_break_4",
+                            False,
+                        ),
+                    ),
+                    (
+                        8,
+                        panel.get(
+                            "show_break_8",
+                            False,
+                        ),
+                    ),
+                    (
+                        50,
+                        panel.get(
+                            "show_break_50",
+                            False,
+                        ),
+                    ),
+                    (
+                        62.5,
+                        panel.get(
+                            "show_break_62_5",
+                            False,
+                        ),
+                    ),
+                ]
+                if enabled
+            ],
         )
     )
 

@@ -2615,8 +2615,8 @@ def _make_grain_fraction_histogram(
         # Keep total whitespace modest so the plotting areas use
         # most of the available vertical space.
         vertical_spacing = min(
-            0.04,
-            0.20 / (n_rows - 1),
+            0.055,
+            0.24 / (n_rows - 1),
         )
 
     fig = make_subplots(
@@ -2624,7 +2624,7 @@ def _make_grain_fraction_histogram(
         cols=n_cols,
         subplot_titles=subplot_titles,
         shared_yaxes=True,
-        horizontal_spacing=0.08,
+        horizontal_spacing=0.10,
         vertical_spacing=vertical_spacing,
     )
 
@@ -2733,8 +2733,8 @@ def _make_grain_fraction_histogram(
         )
 
     figure_height = max(
-        520,
-        250 * n_rows,
+        540,
+        280 * n_rows,
     )
 
     fig.update_layout(
