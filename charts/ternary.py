@@ -6,6 +6,7 @@ from logic.usda_triangle import add_usda_triangle
 
 from logic.legendsorting import (
     gsa_sort_key,
+    organize_grouped_legend,
 )
 
 import pandas as pd
@@ -594,5 +595,15 @@ def make_ternary_plot(
 
     if panel["show_usda_triangle"]:
         fig = add_usda_triangle(fig)
+
+    if using_custom_groups or group_by != "None":
+        organize_grouped_legend(
+            fig,
+            {
+                str(row["sample"]): str(row["group"])
+                for _, row in plot_df.iterrows()
+            },
+            group_colors.keys(),
+        )
 
     return fig

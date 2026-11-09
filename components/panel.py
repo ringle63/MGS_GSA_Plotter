@@ -1,6 +1,7 @@
 from dash import html, dcc
 
 from logic.filters import (
+    FILTER_FIELDS,
     GROUP_BY_FIELDS,
     NUMERIC_FIELDS,
 )
@@ -1653,7 +1654,7 @@ def create_panel(
                                                                 "value": field,
                                                             }
                                                             for field, label in (
-                                                                    GROUP_BY_FIELDS
+                                                                    FILTER_FIELDS
                                                                     | NUMERIC_FIELDS
                                                             ).items()
                                                         ],

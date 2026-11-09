@@ -19,9 +19,22 @@ FILTER_FIELDS = {
     "Origin": "Origin",
     "County": "County",
     "primary_color": "Primary Color",
+
+    # Additional GSA_Lab categorical fields.
+    "age": "Age",
+    "lobe": "Lobe",
+    "state": "State",
+    "Surface_Map_Unit": "Surface Map Unit",
+    "Confidence": "Confidence",
+    "Reviewer_Notes": "Reviewer Notes",
 }
 
-GROUP_BY_FIELDS = FILTER_FIELDS.copy()
+# Free-text review comments are filterable but not useful as chart groups.
+GROUP_BY_FIELDS = {
+    field: alias
+    for field, alias in FILTER_FIELDS.items()
+    if field != "Reviewer_Notes"
+}
 
 NUMERIC_FIELDS = {
     "depth_ft": "Depth (ft)",

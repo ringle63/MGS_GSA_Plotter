@@ -4,6 +4,7 @@ import pandas as pd
 
 from logic.legendsorting import (
     gsa_sort_key,
+    organize_grouped_legend,
 )
 
 from logic.filters import NULL_VALUE
@@ -249,7 +250,7 @@ def make_psd_plot(
 
             if using_custom_groups or group_by != "None":
 
-                if group_by == "GSA_ID":
+                if group_by == "GSA_ID" and not using_custom_groups:
                     group_name = sample
                 else:
                     group_name = row["_group"]
@@ -902,6 +903,16 @@ def make_psd_plot(
         fig.add_vline(
             x=x,
             line_dash="dash",
+        )
+
+    if using_custom_groups or group_by != "None":
+        organize_grouped_legend(
+            fig,
+            {
+                str(row["Sample_Name_Final"]): str(row["_group"])
+                for _, row in subset.iterrows()
+            },
+            group_colors.keys(),
         )
 
     return fig

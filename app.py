@@ -8,6 +8,7 @@ from dash import (
     MATCH,
     ALL,
     Patch,
+    no_update,
     callback_context,
 )
 import copy
@@ -21,6 +22,7 @@ from logic.data_loader import (
     load_gsa_lab,
     load_mmes,
     load_mmes_rs,
+    load_data_bundle,
 )
 from components.globalselection import create_globalselection
 from components.panel import create_panel
@@ -82,157 +84,77 @@ from dash.exceptions import PreventUpdate
 
 from dash_rgl import RGLLayout
 
-gsa_df = load_gsa_lab()
-mmes_df = load_mmes()
-mmes_rs_df = load_mmes_rs()
+def _build_data_metadata(frame):
+    """Rebuild data-dependent dropdown values before committing a refresh."""
 
-print(
-    "Analysis methods in raw dataframe:"
-)
-print(
-    sorted(
-        gsa_df["analysis_method"]
-        .dropna()
-        .unique()
-    )
-)
+    def available_values(field):
+        if field not in frame.columns:
+            return []
+        return sorted(frame[field].dropna().astype(str).unique().tolist())
 
-analysis_methods = sorted(
-    gsa_df["analysis_method"]
-    .dropna()
-    .astype(str)
-    .unique()
-)
+    options = {}
+    for field in FILTER_FIELDS:
+        if field not in frame.columns:
+            continue
+        series = frame[field]
+        values = available_values(field)
+        if series.isna().any():
+            values = [NULL_VALUE] + values
+        options[field] = [
+            {"label": value, "value": value}
+            for value in values
+        ]
 
-formations = sorted(
-    gsa_df["formation"]
-    .dropna()
-    .astype(str)
-    .unique()
-)
-
-boreholes = sorted(
-    gsa_df["BoreholeID"]
-    .dropna()
-    .astype(str)
-    .unique()
-)
-
-filter_options = {}
-
-for field in FILTER_FIELDS:
-
-    if field not in gsa_df.columns:
-        continue
-
-    series = gsa_df[field]
-
-    values = sorted(
-        series
-        .dropna()
-        .astype(str)
-        .unique()
+    grouping = [{"label": "None", "value": "None"}]
+    grouping.extend(
+        {"label": label, "value": field}
+        for field, label in GROUP_BY_FIELDS.items()
+        if field in frame.columns
     )
 
-    if series.isna().any():
-        values = [NULL_VALUE] + values
-
-    filter_options[field] = [
-        {
-            "label": v,
-            "value": v,
-        }
-        for v in values
-    ]
-
-group_by_options = [
-    {
-        "label": "None",
-        "value": "None",
+    return {
+        "analysis_methods": available_values("analysis_method"),
+        "formations": available_values("formation"),
+        "boreholes": available_values("BoreholeID"),
+        "filter_options": options,
+        "group_by_options": grouping,
     }
-]
 
-group_by_options.extend(
-    [
-        {
-            "label": label,
-            "value": field,
-        }
-        for field, label
-        in GROUP_BY_FIELDS.items()
-        if field in gsa_df.columns
-    ]
+
+def _publish_data_bundle(bundle, metadata):
+    """Publish fully loaded data in memory without touching panel stores."""
+    global gsa_df, mmes_df, mmes_rs_df, mmes_ids, matched_count
+    global analysis_methods, formations, boreholes
+    global filter_options, group_by_options
+
+    gsa_df, mmes_df, mmes_rs_df = (
+        bundle["gsa_df"], bundle["mmes_df"], bundle["mmes_rs_df"]
+    )
+    mmes_ids = bundle["mmes_ids"]
+    matched_count = bundle["matched_count"]
+    analysis_methods = metadata["analysis_methods"]
+    formations = metadata["formations"]
+    boreholes = metadata["boreholes"]
+    filter_options = metadata["filter_options"]
+    group_by_options = metadata["group_by_options"]
+
+
+_initial_bundle = load_data_bundle()
+_publish_data_bundle(
+    _initial_bundle,
+    _build_data_metadata(_initial_bundle["gsa_df"]),
 )
 
-primary_mmes_ids = set(
-    mmes_df[
-        "Sample_Name_Final"
-    ].astype(str)
-)
+print("Analysis methods in raw dataframe:", analysis_methods)
+print(f"GSA samples: {len(gsa_df)}")
+print(f"MMES PRIMARY samples: {len(mmes_df)}")
+print(f"MMES RS samples: {len(mmes_rs_df)}")
+print(f"MMES unique samples: {len(mmes_ids)}")
+print(f"Matched samples: {matched_count}")
+print("Duplicate GSA IDs:", gsa_df["GSA_ID"].duplicated().sum())
+print("Duplicate PRIMARY MMES IDs:", mmes_df["Sample_Name_Final"].duplicated().sum())
+print("Duplicate RS MMES IDs:", mmes_rs_df["Sample_Name_Final"].duplicated().sum())
 
-rs_mmes_ids = set(
-    mmes_rs_df[
-        "Sample_Name_Final"
-    ].astype(str)
-)
-
-mmes_ids = (
-        primary_mmes_ids
-        | rs_mmes_ids
-)
-
-matched_count = (
-    gsa_df["GSA_ID"]
-    .astype(str)
-    .isin(mmes_ids)
-    .sum()
-)
-
-print(
-    f"GSA samples: "
-    f"{len(gsa_df)}"
-)
-
-print(
-    f"MMES PRIMARY samples: "
-    f"{len(mmes_df)}"
-)
-
-print(
-    f"MMES RS samples: "
-    f"{len(mmes_rs_df)}"
-)
-
-print(
-    f"MMES unique samples: "
-    f"{len(mmes_ids)}"
-)
-
-print(
-    f"Matched samples: "
-    f"{matched_count}"
-)
-
-print(
-    "Duplicate GSA IDs:",
-    gsa_df[
-        "GSA_ID"
-    ].duplicated().sum(),
-)
-
-print(
-    "Duplicate PRIMARY MMES IDs:",
-    mmes_df[
-        "Sample_Name_Final"
-    ].duplicated().sum(),
-)
-
-print(
-    "Duplicate RS MMES IDs:",
-    mmes_rs_df[
-        "Sample_Name_Final"
-    ].duplicated().sum(),
-)
 
 app = Dash(
     __name__,
@@ -290,6 +212,21 @@ app.layout = html.Div(
                         "Load State",
                     ),
                     multiple=False,
+                ),
+
+                html.Button(
+                    "Refresh Data",
+                    id="refresh-data-btn",
+                    n_clicks=0,
+                ),
+
+                html.Span(
+                    id="refresh-data-status",
+                    role="status",
+                    style={
+                        "alignSelf": "center",
+                        "fontSize": "13px",
+                    },
                 ),
 
                 dcc.ConfirmDialog(
@@ -488,6 +425,11 @@ app.layout = html.Div(
         ),
 
         dcc.Store(
+            id="data-revision",
+            data=0,
+        ),
+
+        dcc.Store(
             id="panel-reset-revision",
             data=0,
         ),
@@ -570,6 +512,62 @@ app.layout = html.Div(
         ),
     ]
 )
+
+
+@app.callback(
+    Output("data-revision", "data"),
+    Output("refresh-data-status", "children"),
+    Output("refresh-data-status", "style"),
+    Output("global-samples", "value", allow_duplicate=True),
+    Input("refresh-data-btn", "n_clicks"),
+    State("data-revision", "data"),
+    State("global-samples", "value"),
+    State("global-filters", "data"),
+    prevent_initial_call=True,
+)
+def refresh_data(_clicks, revision, selected_samples, active_filters):
+    """Manual all-or-nothing reload. Keep applied and draft panel states."""
+    try:
+        candidate = load_data_bundle(
+            expected_columns={
+                "GSA": gsa_df.columns,
+                "PRIMARY MMES": mmes_df.columns,
+                "RS MMES": mmes_rs_df.columns,
+            }
+        )
+        candidate_meta = _build_data_metadata(candidate["gsa_df"])
+        valid_rows = apply_filters(
+            candidate["gsa_df"], active_filters or []
+        )
+        valid_ids = set(valid_rows["GSA_ID"].dropna().astype(str))
+        retained = [
+            sample
+            for sample in normalize_identifier_list(selected_samples)
+            if sample in valid_ids
+        ]
+    except Exception as exc:
+        return (
+            no_update,
+            f"Data refresh failed — current data retained: {exc}",
+            {"alignSelf": "center", "fontSize": "13px", "color": "#b42318"},
+            no_update,
+        )
+
+    _publish_data_bundle(candidate, candidate_meta)
+    message = (
+        "Data refreshed successfully — "
+        f"GSA: {len(gsa_df):,} | "
+        f"MMES: {len(mmes_ids):,} "
+        f"(PRIMARY: {len(mmes_df):,}, RS: {len(mmes_rs_df):,}) | "
+        f"Matched: {matched_count:,}"
+    )
+    print(message)
+    return (
+        (revision or 0) + 1,
+        message,
+        {"alignSelf": "center", "fontSize": "13px", "color": "#18794e"},
+        retained,
+    )
 
 
 @app.callback(
@@ -824,9 +822,11 @@ def restore_layout(
         "global-filters",
         "data",
     ),
+    Input("data-revision", "data"),
 )
 def update_sample_options(
         filters,
+        _data_revision,
 ):
     filters = filters or []
 
@@ -877,6 +877,7 @@ def update_selected_count(selected_samples):
         "global-samples",
         "value",
     ),
+    Input("data-revision", "data"),
     State(
         {
             "type": "panel-selected-count",
@@ -888,6 +889,7 @@ def update_selected_count(selected_samples):
 def update_panel_selected_count(
         panel_data,
         global_samples,
+        _data_revision,
         component_id,
 ):
     if (
@@ -945,8 +947,9 @@ def update_panel_selected_count(
         "global-filters",
         "data",
     ),
+    Input("data-revision", "data"),
 )
-def load_filter_fields(_):
+def load_filter_fields(_, _data_revision):
     fields = {}
 
     fields.update(FILTER_FIELDS)
@@ -959,6 +962,7 @@ def load_filter_fields(_):
         }
         for field, label
         in fields.items()
+        if field in gsa_df.columns
     ]
 
 
@@ -1003,6 +1007,7 @@ def update_operator_options(
         "global-filter-field",
         "value",
     ),
+    Input("data-revision", "data"),
     State(
         "global-filter-operator",
         "value",
@@ -1011,6 +1016,7 @@ def update_operator_options(
 )
 def update_filter_values(
         field,
+        _data_revision,
         operator,
 ):
     if operator == "CONTAINS":
@@ -1459,28 +1465,19 @@ def apply_global_filters(
         allow_duplicate=True,
     ),
     Input(
-        "global-samples",
-        "options",
-    ),
-    State(
         "global-filters",
         "data",
     ),
     prevent_initial_call=True,
 )
-def auto_select_filtered(
-        options,
-        filters,
-):
+def auto_select_filtered(filters):
+    # A changed applied filter still selects its matching samples,
+    # but a data refresh alone must not auto-select/reset the list.
     if not filters:
         return []
 
-    return [
-        option["value"]
-        for option in (
-                options or []
-        )
-    ]
+    matching = apply_filters(gsa_df, filters)
+    return sorted(matching["GSA_ID"].dropna().astype(str).unique())
 
 
 @app.callback(
@@ -1590,6 +1587,16 @@ def render_panels(
         )
 
     return panels
+
+
+@app.callback(
+    Output({"type": "group-by", "index": MATCH}, "options"),
+    Input("data-revision", "data"),
+    State({"type": "group-by", "index": MATCH}, "id"),
+)
+def refresh_panel_group_by_options(_data_revision, _component_id):
+    # MATCH only updates the current panel's dropdown, not its state.
+    return group_by_options
 
 
 @app.callback(
@@ -1972,6 +1979,7 @@ def update_panel_operator_options(
         },
         "value",
     ),
+    Input("data-revision", "data"),
     State(
         {
             "type": "panel-filter-operator",
@@ -1982,6 +1990,7 @@ def update_panel_operator_options(
 )
 def update_panel_filter_values(
         field,
+        _data_revision,
         operator,
 ):
     if operator == "CONTAINS":
@@ -2136,6 +2145,7 @@ def update_custom_group_operator_options(
         },
         "value",
     ),
+    Input("data-revision", "data"),
     State(
         {
             "type": "custom-group-filter-operator",
@@ -2147,6 +2157,7 @@ def update_custom_group_operator_options(
 )
 def update_custom_group_filter_values(
         field,
+        _data_revision,
         operator,
 ):
     if operator == "CONTAINS":
@@ -2850,6 +2861,7 @@ def clear_panel_filters(
         "layout-store",
         "data",
     ),
+    Input("data-revision", "data"),
     State(
         {
             "type": "panel-content",
@@ -2862,6 +2874,7 @@ def update_graph(
         panel_data,
         global_samples,
         layout_data,
+        _data_revision,
         component_id,
 ):
     if (
@@ -3624,7 +3637,7 @@ def render_custom_groups(
                             }
                             for field, label
                             in (
-                                    GROUP_BY_FIELDS
+                                    FILTER_FIELDS
                                     |
                                     NUMERIC_FIELDS
                             ).items()
